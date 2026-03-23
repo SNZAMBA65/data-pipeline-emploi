@@ -205,3 +205,23 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Variables d'environnement (ne JAMAIS committer les credentials)
+.env
+
+# Données locales (trop lourdes pour Git)
+data/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+logs/
