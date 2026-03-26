@@ -26,28 +26,28 @@ class Depute:
     uid: str
     nom: str
     prenom: str
-    civilite: Optional[str]           = None
-    date_naissance: Optional[str]     = None
-    lieu_naissance: Optional[str]     = None
+    civilite: Optional[str]              = None
+    date_naissance: Optional[str]        = None
+    lieu_naissance: Optional[str]        = None
     departement_naissance: Optional[str] = None
-    profession: Optional[str]         = None
-    url_photo: Optional[str]          = None
+    profession: Optional[str]            = None
+    url_photo: Optional[str]             = None
 
 
 @dataclass
 class Scrutin:
     """Représente un scrutin (vote) à l'Assemblée nationale."""
     uid: str
-    numero: Optional[str]             = None
-    titre: Optional[str]              = None
-    date: Optional[str]               = None
-    legislature: Optional[str]        = None
-    type_vote: Optional[str]          = None
-    sort: Optional[str]               = None
-    pour: int                         = 0
-    contre: int                       = 0
-    abstention: int                   = 0
-    non_votant: int                   = 0
+    numero: Optional[str]       = None
+    titre: Optional[str]        = None
+    date: Optional[str]         = None
+    legislature: Optional[str]  = None
+    type_vote: Optional[str]    = None
+    sort: Optional[str]         = None
+    pour: int                   = 0
+    contre: int                 = 0
+    abstention: int             = 0
+    non_votant: int             = 0
 
 
 # ─── Classe de base ───────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ class BaseCollector:
             response.raise_for_status()
 
             zip_bytes = io.BytesIO(response.content)
-            zip_file = zipfile.ZipFile(zip_bytes)
+            zip_file  = zipfile.ZipFile(zip_bytes)
 
             logger.success(
                 f"ZIP téléchargé — {len(zip_file.namelist())} fichier(s)"
@@ -113,7 +113,9 @@ class BaseCollector:
             logger.error(f"Erreur réseau inattendue : {e}")
             return None
 
-    def _lire_json(self, zip_file: zipfile.ZipFile, chemin: str) -> Optional[dict]:
+    def _lire_json(
+        self, zip_file: zipfile.ZipFile, chemin: str
+    ) -> Optional[dict]:
         """
         Lit et parse un fichier JSON depuis un ZIP ouvert.
 
@@ -188,7 +190,6 @@ class DeputesCollector(BaseCollector):
             if zip_file is None:
                 return []
 
-            # Filtre uniquement les fichiers acteurs
             fichiers_acteurs = [
                 f for f in zip_file.namelist()
                 if f.startswith("json/acteur/") and f.endswith(".json")
@@ -220,9 +221,29 @@ class DeputesCollector(BaseCollector):
             logger.error(f"Erreur critique : {e}")
             return []
 
+    def _extraire_valeur(self, valeur) -> Optional[str]:
+        """
+        Extrait une valeur string depuis un champ qui peut être
+        un dict XML nul {"@xsi:nil": "true"} ou une chaîne.
+
+        Args:
+            valeur: La valeur brute du JSON
+
+        Returns:
+            Chaîne extraite ou None
+        """
+        if valeur is None:
+            return None
+        if isinstance(valeur, dict):
+            if valeur.get("@xsi:nil") == "true":
+                return None
+            return valeur.get("#text")
+        return str(valeur) if valeur else None
+
     def _parser_depute(self, data: dict) -> Optional[Depute]:
         """
         Parse les données brutes d'un acteur en objet Depute.
+        Gère les champs nuls au format XML {"@xsi:nil": "true"}.
 
         Args:
             data: Dictionnaire brut depuis le JSON
@@ -235,35 +256,45 @@ class DeputesCollector(BaseCollector):
 
             # uid peut être un dict {"#text": "PA..."} ou une chaîne
             uid_raw = acteur.get("uid", {})
-            uid = uid_raw.get("#text", "") if isinstance(uid_raw, dict) else uid_raw
+            uid = uid_raw.get("#text", "") \
+                  if isinstance(uid_raw, dict) else uid_raw
 
             etat_civil = acteur.get("etatCivil", {})
-            ident = etat_civil.get("ident", {})
-            naissance = etat_civil.get("infoNaissance", {})
+            ident      = etat_civil.get("ident", {})
+            naissance  = etat_civil.get("infoNaissance", {})
 
-            nom = ident.get("nom", "")
+            nom    = ident.get("nom", "")
             prenom = ident.get("prenom", "")
 
             if not uid or not nom:
                 return None
 
-            # Profession (peut être None ou un dict)
+            # Profession
             profession_data = acteur.get("profession", {})
             profession = None
             if isinstance(profession_data, dict):
-                profession = profession_data.get("libelleCourant")
+                profession = self._extraire_valeur(
+                    profession_data.get("libelleCourant")
+                )
 
             return Depute(
                 uid=uid,
                 nom=nom,
                 prenom=prenom,
-                civilite=ident.get("civ"),
-                date_naissance=naissance.get("dateNais"),
-                lieu_naissance=naissance.get("villeNais"),
-                departement_naissance=naissance.get("depNais"),
+                civilite=self._extraire_valeur(ident.get("civ")),
+                date_naissance=self._extraire_valeur(
+                    naissance.get("dateNais")
+                ),
+                lieu_naissance=self._extraire_valeur(
+                    naissance.get("villeNais")
+                ),
+                departement_naissance=self._extraire_valeur(
+                    naissance.get("depNais")
+                ),
                 profession=profession,
                 url_photo=(
-                    f"https://www.assemblee-nationale.fr/dyn/deputes/photos/{uid}.jpg"
+                    f"https://www.assemblee-nationale.fr"
+                    f"/dyn/deputes/photos/{uid}.jpg"
                 ),
             )
 
@@ -374,9 +405,9 @@ class ScrutinsCollector(BaseCollector):
                 return None
 
             type_vote = s.get("typeVote", {})
-            sort = s.get("sort", {})
-            synthese = s.get("syntheseVote", {})
-            decompte = synthese.get("decompte", {})
+            sort      = s.get("sort", {})
+            synthese  = s.get("syntheseVote", {})
+            decompte  = synthese.get("decompte", {})
 
             def to_int(val) -> int:
                 """Convertit une valeur en entier de façon sécurisée."""
@@ -391,8 +422,10 @@ class ScrutinsCollector(BaseCollector):
                 titre=s.get("titre"),
                 date=s.get("dateScrutin"),
                 legislature=s.get("legislature"),
-                type_vote=type_vote.get("libelleTypeVote") if isinstance(type_vote, dict) else None,
-                sort=sort.get("code") if isinstance(sort, dict) else None,
+                type_vote=type_vote.get("libelleTypeVote")
+                          if isinstance(type_vote, dict) else None,
+                sort=sort.get("code")
+                     if isinstance(sort, dict) else None,
                 pour=to_int(decompte.get("pour")),
                 contre=to_int(decompte.get("contre")),
                 abstention=to_int(decompte.get("abstentions")),
