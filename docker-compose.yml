@@ -53,6 +53,23 @@ services:
       - postgres
     restart: unless-stopped
 
+  # ── Grafana — Monitoring et dashboards ───────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
   # ── Base de données interne Airflow ───────────────────────────────
   postgres_airflow:
     image: postgres:15-alpine
@@ -153,3 +170,4 @@ volumes:
   minio_data:
   postgres_data:
   postgres_airflow_data:
+  grafana_data:
