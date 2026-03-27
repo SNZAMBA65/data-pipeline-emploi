@@ -2,7 +2,7 @@ apiVersion: 1
 
 datasources:
   - name: PostgreSQL
-    type: postgres
+    type: grafana-postgresql-datasource
     url: postgres_jobs:5432
     database: jobs_db
     user: jobs_user
