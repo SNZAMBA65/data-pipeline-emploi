@@ -22,7 +22,7 @@ class PostgresLoader:
         self.port     = os.getenv("POSTGRES_PORT", "5432")
         self.db       = os.getenv("POSTGRES_DB", "jobs_db")
         self.user     = os.getenv("POSTGRES_USER", "jobs_user")
-        self.password = os.getenv("POSTGRES_PASSWORD", "jobs_password123")
+        self.password = os.getenv("POSTGRES_PASSWORD")
         self.engine   = None
         logger.info("Initialisation de PostgresLoader")
 

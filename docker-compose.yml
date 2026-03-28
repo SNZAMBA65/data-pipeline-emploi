@@ -81,7 +81,7 @@ services:
     ports:
       - "9187:9187"
     environment:
-      DATA_SOURCE_NAME: "postgresql://jobs_user:jobs_password123@postgres_jobs:5432/jobs_db?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres_jobs:5432/${POSTGRES_DB}?sslmode=disable"
     depends_on:
       - postgres
     restart: unless-stopped

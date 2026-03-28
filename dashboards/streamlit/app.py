@@ -15,6 +15,9 @@ import streamlit as st
 from sqlalchemy import create_engine
 import warnings
 warnings.filterwarnings("ignore")
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -323,7 +326,11 @@ def nettoyer_serie(serie: pd.Series) -> pd.Series:
 @st.cache_resource
 def get_engine():
     return create_engine(
-        "postgresql+psycopg2://jobs_user:jobs_password123@localhost:5432/jobs_db"
+        (
+    f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:"
+    f"{os.getenv('POSTGRES_PASSWORD')}@localhost:5432/"
+    f"{os.getenv('POSTGRES_DB')}"
+)
     )
 
 @st.cache_data

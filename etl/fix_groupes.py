@@ -26,7 +26,11 @@ ZIP_URL = (
     "AMO10_deputes_actifs_mandats_actifs_organes.json.zip"
 )
 
-DB_URL = "postgresql+psycopg2://jobs_user:jobs_password123@localhost:5432/jobs_db"
+DB_URL = (
+    f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:"
+    f"{os.getenv('POSTGRES_PASSWORD')}@localhost:5432/"
+    f"{os.getenv('POSTGRES_DB')}"
+)
 
 # Mapping libelleAbrege → sigle en base (normalisation)
 SIGLE_MAP = {
