@@ -1,5 +1,7 @@
 """
-Dashboard : Assemblée nationale française, 17e législature.
+Dashboard Streamlit — Assemblée nationale française, 17e législature.
+Projet #2 — Infrastructure Data Cloud · DPIA 1
+Auteur : Samir NZAMBA · L'École Multimédia · Paris
 
 Usage :
     streamlit run dashboards/streamlit/app.py
@@ -40,7 +42,6 @@ html, body, [class*="css"] {
     max-width: 1380px !important;
 }
 
-/* ── Sidebar ────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #002395 0%, #001f80 100%) !important;
 }
@@ -63,8 +64,6 @@ html, body, [class*="css"] {
     opacity: 0.55 !important;
     font-weight: 600 !important;
 }
-
-/* ── Selectbox / multiselect fond lisible ───────────────────────── */
 [data-testid="stSidebar"] .stSelectbox > div > div,
 [data-testid="stSidebar"] .stMultiSelect > div > div {
     background-color: rgba(255,255,255,0.12) !important;
@@ -79,8 +78,6 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] .stMultiSelect svg {
     fill: #ffffff !important;
 }
-
-/* ── Menu déroulant ─────────────────────────────────────────────── */
 [data-testid="stSidebar"] ul[role="listbox"],
 [data-testid="stSidebar"] div[role="listbox"] {
     background-color: #0d2b8e !important;
@@ -90,12 +87,7 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] div[role="listbox"] div {
     color: #ffffff !important;
 }
-[data-testid="stSidebar"] ul[role="listbox"] li:hover,
-[data-testid="stSidebar"] div[role="listbox"] div:hover {
-    background-color: rgba(255,255,255,0.1) !important;
-}
 
-/* ── Métriques ──────────────────────────────────────────────────── */
 [data-testid="metric-container"] {
     background: #ffffff;
     border: 1px solid #e4e8f0;
@@ -123,7 +115,6 @@ html, body, [class*="css"] {
     color: #64748b !important;
 }
 
-/* ── Titres ─────────────────────────────────────────────────────── */
 h1 {
     font-size: 1.7rem !important;
     font-weight: 700 !important;
@@ -140,14 +131,12 @@ h3 {
     margin: 0 0 0.15rem 0 !important;
 }
 
-/* ── Captions ───────────────────────────────────────────────────── */
 [data-testid="stCaptionContainer"] p {
     color: #94a3b8 !important;
     font-size: 0.76rem !important;
     margin-bottom: 0.75rem !important;
 }
 
-/* ── Info boxes ─────────────────────────────────────────────────── */
 [data-testid="stAlert"] {
     border-radius: 10px !important;
     border: 1px solid #dbeafe !important;
@@ -160,7 +149,6 @@ h3 {
     color: #334155 !important;
 }
 
-/* ── Dataframe ──────────────────────────────────────────────────── */
 [data-testid="stDataFrame"] {
     border-radius: 10px !important;
     border: 1px solid #e4e8f0 !important;
@@ -168,7 +156,6 @@ h3 {
     box-shadow: 0 1px 3px rgba(0,35,149,0.04) !important;
 }
 
-/* ── Bandeau ────────────────────────────────────────────────────── */
 .page-banner {
     background: linear-gradient(135deg, #002395 0%, #0035c9 100%);
     border-radius: 14px;
@@ -203,7 +190,6 @@ h3 {
     white-space: nowrap;
 }
 
-/* ── Chart card ─────────────────────────────────────────────────── */
 .chart-card {
     background: #ffffff;
     border-radius: 12px;
@@ -211,6 +197,14 @@ h3 {
     padding: 1.25rem 1.5rem 0.75rem 1.5rem;
     box-shadow: 0 1px 3px rgba(0,35,149,0.05);
     margin-bottom: 1.25rem;
+}
+
+.author-card {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 0.875rem 1rem;
+    margin-top: 0.5rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -229,6 +223,21 @@ COLORSCALE_BLEU = [
     [0.5, "#4f7ed4"],
     [1,   "#002395"],
 ]
+
+COULEURS_GROUPES = {
+    "RN":      "#1E3A8A",
+    "EPR":     "#DAA520",
+    "LFI-NFP": "#CC0000",
+    "SOC":     "#E91E63",
+    "DR":      "#1565C0",
+    "ECO":     "#2E7D32",
+    "DEM":     "#FF8F00",
+    "HOR":     "#00838F",
+    "LIOT":    "#6A1B9A",
+    "GDR":     "#B71C1C",
+    "UDR":     "#0D47A1",
+    "NI":      "#757575",
+}
 
 def plo(**kw):
     base = dict(
@@ -286,7 +295,6 @@ def chart(fig):
 # ─── Nettoyage ────────────────────────────────────────────────────────────────
 
 def nettoyer_affichage(val):
-    """Convertit les valeurs parasites XML en tiret lisible."""
     if val is None:
         return "—"
     if isinstance(val, float) and math.isnan(val):
@@ -306,9 +314,7 @@ def nettoyer_affichage(val):
             return "—"
     return val
 
-
 def nettoyer_serie(serie: pd.Series) -> pd.Series:
-    """Applique nettoyer_affichage et remplace les tirets par NaN."""
     return serie.apply(nettoyer_affichage).replace("—", None)
 
 
@@ -323,8 +329,16 @@ def get_engine():
 @st.cache_data
 def charger():
     eng = get_engine()
-    d = pd.read_sql("SELECT * FROM deputes", eng)
+    # Uniquement les députés actifs de la 17e législature
+    d = pd.read_sql(
+        "SELECT * FROM deputes WHERE groupe_sigle IS NOT NULL",
+        eng
+    )
     s = pd.read_sql("SELECT * FROM scrutins ORDER BY date", eng)
+    g = pd.read_sql(
+        "SELECT * FROM groupes_politiques ORDER BY nb_membres DESC",
+        eng
+    )
 
     def clean(v):
         if isinstance(v, dict):
@@ -345,9 +359,15 @@ def charger():
     d["date_naissance"] = pd.to_datetime(d["date_naissance"], errors="coerce")
     d["genre"]          = d["civilite"].map({"M.": "Homme", "Mme": "Femme"})
     s["date"]           = pd.to_datetime(s["date"])
-    return d, s
+    return d, s, g
 
-df_d, df_s = charger()
+df_d, df_s, df_g = charger()
+
+# Constantes dynamiques
+AGE_MIN    = int(df_d["age"].dropna().min())
+AGE_MAX    = int(df_d["age"].dropna().max())
+NB_DEPUTES = len(df_d)
+NB_SCRUTINS = len(df_s)
 
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -355,12 +375,13 @@ df_d, df_s = charger()
 with st.sidebar:
     st.markdown(
         "<div style='font-size:1rem;font-weight:700;"
-        "letter-spacing:-0.01em;margin-bottom:0.2rem;'>"
+        "letter-spacing:-0.01em;margin-bottom:0.1rem;'>"
         "Assemblée nationale</div>"
         "<div style='font-size:0.73rem;opacity:0.5;"
-        "margin-bottom:1.5rem;'>17e législature · France</div>",
+        "margin-bottom:1.25rem;'>17e législature · France</div>",
         unsafe_allow_html=True
     )
+
     st.markdown("---")
 
     page = st.radio(
@@ -372,12 +393,26 @@ with st.sidebar:
     st.markdown("---")
 
     if page == "Députés":
-        genre_opt  = st.selectbox("Genre", ["Tous", "Homme", "Femme"])
-        age_range  = st.slider("Âge", 20, 100, (20, 100))
+        genre_opt = st.selectbox("Genre", ["Tous", "Homme", "Femme"])
+
+        # Bornes d'âge dynamiques
+        age_range = st.slider(
+            "Âge",
+            min_value=AGE_MIN,
+            max_value=AGE_MAX,
+            value=(AGE_MIN, AGE_MAX)
+        )
+
+        # Filtre par groupe politique
+        groupes_dispo = ["Tous"] + df_g["sigle"].tolist()
+        groupe_opt = st.selectbox("Groupe politique", groupes_dispo)
+
         st.markdown("---")
+
+        # Slider adapté — pas de valeur redondante avec le total
         nb_deputes = st.select_slider(
             "Députés affichés",
-            options=[25, 50, 100, 200, 500, 1000, "Tous"],
+            options=[25, 50, 100, 200, 300, "Tous"],
             value=100,
         )
 
@@ -387,9 +422,25 @@ with st.sidebar:
         annees_sel = st.multiselect("Années", annees_all, default=annees_all)
 
     st.markdown("---")
+
+    st.markdown(
+        "<div class='author-card'>"
+        "<div style='font-size:0.78rem;font-weight:600;"
+        "margin-bottom:0.3rem;'>Samir NZAMBA</div>"
+        "<div style='font-size:0.7rem;opacity:0.65;line-height:1.6;'>"
+        "Mastère DPIA 1<br>"
+        "Directeur de Projet IA<br>"
+        "L'École Multimédia · Paris<br>"
+        "Projet #2 · Infrastructure Data Cloud"
+        "</div></div>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
         "<div style='font-size:0.68rem;opacity:0.45;line-height:1.9;'>"
         "Source · data.assemblee-nationale.fr<br>"
+        "API officielle + scraping HTML<br>"
         "Licence Ouverte / Open Licence<br>"
         "Pipeline ETL · mise à jour quotidienne"
         "</div>",
@@ -414,15 +465,19 @@ if page == "Vue d'ensemble":
             <div class="banner-title">Assemblée nationale française</div>
             <div class="banner-desc">
                 Analyse des données parlementaires · 17e législature
+                · {NB_DEPUTES} députés actifs · {NB_SCRUTINS:,} scrutins publics
             </div>
         </div>
         <div class="banner-badge">● Données au {date_max}</div>
     </div>
     """, unsafe_allow_html=True)
 
+    # ── KPIs ──────────────────────────────────────────────────────
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    k1.metric("Députés", f"{len(df_d):,}", "recensés")
-    k2.metric("Scrutins", f"{len(df_s):,}", "depuis juil. 2024")
+    k1.metric("Députés actifs", f"{NB_DEPUTES}",
+              "17e législature")
+    k2.metric("Scrutins publics", f"{NB_SCRUTINS:,}",
+              "juil. 2024 — mars 2026")
     k3.metric("Taux d'adoption", f"{adopte_pct:.1f} %",
               f"{df_s['adopte'].sum():,} adoptés")
     k4.metric("Femmes à l'AN", f"{femmes_pct:.1f} %",
@@ -434,6 +489,7 @@ if page == "Vue d'ensemble":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── Activité mensuelle ────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Activité législative mensuelle")
     st.caption(
@@ -518,7 +574,7 @@ if page == "Vue d'ensemble":
     with col_b:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.markdown("### Composition de l'hémicycle")
-        st.caption("Répartition hommes / femmes · 577 sièges")
+        st.caption(f"Répartition hommes / femmes · {NB_DEPUTES} députés actifs")
 
         civ = df_d["civilite"].value_counts().reset_index()
         civ.columns = ["civilite", "nb"]
@@ -596,8 +652,57 @@ if page == "Vue d'ensemble":
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Répartition par groupe ────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.markdown("### Composition par groupe politique")
+    st.caption(
+        f"Nombre de sièges par groupe · {NB_DEPUTES} députés actifs "
+        f"· 17e législature"
+    )
+
+    groupes_count = (
+        df_d.groupby("groupe_sigle")
+        .size()
+        .reset_index(name="nb")
+        .sort_values("nb", ascending=False)
+    )
+    groupes_count = groupes_count.merge(
+        df_g[["sigle", "nom"]], left_on="groupe_sigle",
+        right_on="sigle", how="left"
+    )
+    groupes_count["couleur"] = groupes_count["groupe_sigle"].map(
+        COULEURS_GROUPES
+    ).fillna(BLEU_C)
+    groupes_count["pct"] = (
+        groupes_count["nb"] / groupes_count["nb"].sum() * 100
+    ).round(1)
+
+    fig = go.Figure(go.Bar(
+        x=groupes_count["groupe_sigle"],
+        y=groupes_count["nb"],
+        marker_color=groupes_count["couleur"].tolist(),
+        marker_opacity=0.88,
+        marker_line=dict(color="rgba(0,0,0,0)"),
+        text=[f"{n}<br>{p} %" for n, p in
+              zip(groupes_count["nb"], groupes_count["pct"])],
+        textposition="outside",
+        textfont=dict(size=10.5, color="#374151", family=FONT),
+        customdata=groupes_count[["nom", "pct"]].values,
+        hovertemplate=(
+            "<b>%{x}</b> — %{customdata[0]}<br>"
+            "%{y} sièges · %{customdata[1]} %<extra></extra>"
+        ),
+    ))
+    fig.update_layout(**plo(height=360, showlegend=False))
+    fig.update_xaxes(**ax(tickfont=dict(size=11)))
+    fig.update_yaxes(**ay(title_text="Nombre de sièges"))
+    chart(fig)
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── Insights ──────────────────────────────────────────────────
     st.markdown("### Points d'analyse")
     st.caption(
         "Lecture synthétique des principales tendances "
@@ -615,10 +720,10 @@ if page == "Vue d'ensemble":
         )
     with ci2:
         st.info(
-            f"**{femmes_pct:.1f} % de femmes** à l'Assemblée. "
-            f"Leur âge médian est inférieur de plusieurs années à "
-            f"celui de leurs collègues masculins, signe d'un "
-            f"renouvellement générationnel progressif."
+            f"**{femmes_pct:.1f} % de femmes** parmi les "
+            f"{NB_DEPUTES} députés actifs. Leur âge médian est "
+            f"inférieur de plusieurs années à celui de leurs "
+            f"collègues masculins."
         )
     with ci3:
         st.info(
@@ -642,7 +747,8 @@ elif page == "Députés":
             <div class="banner-title">Profil des députés</div>
             <div class="banner-desc">
                 Démographie, parcours professionnels et origines
-                géographiques · {len(df_d):,} élus analysés
+                géographiques · {NB_DEPUTES} députés actifs
+                · 17e législature
             </div>
         </div>
     </div>
@@ -652,6 +758,8 @@ elif page == "Députés":
     if genre_opt != "Tous":
         df = df[df["genre"] == genre_opt]
     df = df[(df["age"] >= age_range[0]) & (df["age"] <= age_range[1])]
+    if groupe_opt != "Tous":
+        df = df[df["groupe_sigle"] == groupe_opt]
 
     st.caption(
         f"{len(df):,} député{'s' if len(df) > 1 else ''} "
@@ -698,7 +806,7 @@ elif page == "Députés":
             .reset_index()
         )
         top_p.columns = ["profession", "nb"]
-        max_nb = top_p["nb"].max()
+        max_nb = top_p["nb"].max() if not top_p.empty else 1
 
         fig = go.Figure(go.Bar(
             x=top_p["nb"],
@@ -736,22 +844,23 @@ elif page == "Députés":
         fig = go.Figure()
         for genre, color in [("Homme", BLEU), ("Femme", ROUGE)]:
             data = df_box[df_box["genre"] == genre]["age"].dropna()
-            fig.add_trace(go.Violin(
-                y=data, name=genre,
-                box_visible=True,
-                meanline_visible=True,
-                fillcolor=color,
-                opacity=0.6,
-                line_color=color,
-                line_width=1.5,
-                points="outliers",
-                marker=dict(color=color, size=3, opacity=0.4,
-                            line=dict(color="white", width=0.5)),
-                hovertemplate=(
-                    f"<b>{genre}</b><br>"
-                    "Âge : %{y}<extra></extra>"
-                ),
-            ))
+            if not data.empty:
+                fig.add_trace(go.Violin(
+                    y=data, name=genre,
+                    box_visible=True,
+                    meanline_visible=True,
+                    fillcolor=color,
+                    opacity=0.6,
+                    line_color=color,
+                    line_width=1.5,
+                    points="outliers",
+                    marker=dict(color=color, size=3, opacity=0.4,
+                                line=dict(color="white", width=0.5)),
+                    hovertemplate=(
+                        f"<b>{genre}</b><br>"
+                        "Âge : %{y}<extra></extra>"
+                    ),
+                ))
         fig.update_layout(**plo(
             height=500,
             legend=dict(orientation="h", y=1.04,
@@ -763,6 +872,44 @@ elif page == "Députés":
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Répartition par groupe ────────────────────────────────────
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.markdown("### Répartition par groupe politique")
+    st.caption("Nombre de député·e·s par groupe · sélection active")
+
+    if not df.empty:
+        gp_sel = (
+            df.groupby("groupe_sigle")
+            .size()
+            .reset_index(name="nb")
+            .sort_values("nb", ascending=False)
+        )
+        gp_sel["couleur"] = gp_sel["groupe_sigle"].map(
+            COULEURS_GROUPES
+        ).fillna(BLEU_C)
+
+        fig = go.Figure(go.Bar(
+            x=gp_sel["groupe_sigle"],
+            y=gp_sel["nb"],
+            marker_color=gp_sel["couleur"].tolist(),
+            marker_opacity=0.88,
+            marker_line=dict(color="rgba(0,0,0,0)"),
+            text=gp_sel["nb"],
+            textposition="outside",
+            textfont=dict(size=11, color="#374151", family=FONT),
+            hovertemplate=(
+                "<b>%{x}</b><br>%{y} député·e·s<extra></extra>"
+            ),
+        ))
+        fig.update_layout(**plo(height=300, showlegend=False))
+        fig.update_xaxes(**ax())
+        fig.update_yaxes(**ay(title_text="Nombre de député·e·s"))
+        chart(fig)
+    else:
+        st.caption("Aucun député dans la sélection.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Villes de naissance ───────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Villes de naissance les plus représentées")
     st.caption("Top 20 communes · nombre de député·e·s nés sur place")
@@ -776,28 +923,29 @@ elif page == "Députés":
     )
     top_v.columns = ["ville", "nb"]
 
-    fig = go.Figure(go.Bar(
-        x=top_v["ville"], y=top_v["nb"],
-        marker=dict(
-            color=top_v["nb"],
-            colorscale=COLORSCALE_BLEU,
-            showscale=False,
-            line=dict(color="rgba(0,0,0,0)"),
-        ),
-        text=top_v["nb"],
-        textposition="outside",
-        textfont=dict(size=10.5, color=GRIS, family=FONT),
-        hovertemplate=(
-            "<b>%{x}</b><br>%{y} député·e·s<extra></extra>"
-        ),
-    ))
-    fig.update_layout(**plo(height=310))
-    fig.update_xaxes(**ax(tickangle=-38, tickfont=dict(size=10)))
-    fig.update_yaxes(**ay())
-    chart(fig)
+    if not top_v.empty:
+        fig = go.Figure(go.Bar(
+            x=top_v["ville"], y=top_v["nb"],
+            marker=dict(
+                color=top_v["nb"],
+                colorscale=COLORSCALE_BLEU,
+                showscale=False,
+                line=dict(color="rgba(0,0,0,0)"),
+            ),
+            text=top_v["nb"],
+            textposition="outside",
+            textfont=dict(size=10.5, color=GRIS, family=FONT),
+            hovertemplate=(
+                "<b>%{x}</b><br>%{y} député·e·s<extra></extra>"
+            ),
+        ))
+        fig.update_layout(**plo(height=310))
+        fig.update_xaxes(**ax(tickangle=-38, tickfont=dict(size=10)))
+        fig.update_yaxes(**ay())
+        chart(fig)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Répertoire avec filtre ────────────────────────────────────
+    # ── Répertoire ────────────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
     col_titre, col_info = st.columns([3, 2])
@@ -822,7 +970,7 @@ elif page == "Députés":
 
     df_affichage = df[[
         "nom_complet", "civilite", "age",
-        "lieu_naissance", "profession"
+        "groupe_sigle", "lieu_naissance", "profession"
     ]].copy().sort_values("nom_complet")
 
     if limite:
@@ -842,6 +990,7 @@ elif page == "Députés":
             "nom_complet":    "Nom",
             "civilite":       "Civ.",
             "age":            "Âge",
+            "groupe_sigle":   "Groupe",
             "lieu_naissance": "Lieu de naissance",
             "profession":     "Profession avant mandat",
         }).reset_index(drop=True),
@@ -851,6 +1000,7 @@ elif page == "Députés":
             "Nom":                     st.column_config.TextColumn(width="medium"),
             "Civ.":                    st.column_config.TextColumn(width="small"),
             "Âge":                     st.column_config.TextColumn(width="small"),
+            "Groupe":                  st.column_config.TextColumn(width="small"),
             "Lieu de naissance":       st.column_config.TextColumn(width="medium"),
             "Profession avant mandat": st.column_config.TextColumn(width="large"),
         }
@@ -869,8 +1019,8 @@ elif page == "Scrutins":
         <div>
             <div class="banner-title">Scrutins publics</div>
             <div class="banner-desc">
-                Votes en séance · 17e législature depuis juillet 2024
-                · {len(df_s):,} scrutins analysés
+                Votes en séance publique · 17e législature
+                · {NB_SCRUTINS:,} scrutins · juil. 2024 — mars 2026
             </div>
         </div>
     </div>
