@@ -4,8 +4,8 @@ Source : data.assemblee-nationale.fr (Licence Ouverte / Open Licence)
 
 Architecture :
     BaseCollector          → gestion HTTP, téléchargement ZIP
-    ├── DeputesCollector   → collecte les députés (un JSON par acteur)
-    └── ScrutinsCollector  → collecte les scrutins/votes (un JSON par scrutin)
+    ├── DeputesCollector   → collecte les députés actifs (17e législature)
+    └── ScrutinsCollector  → collecte les scrutins/votes
 """
 
 import io
@@ -14,7 +14,7 @@ import zipfile
 import requests
 from loguru import logger
 from fake_useragent import UserAgent
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -22,7 +22,7 @@ from typing import Optional
 
 @dataclass
 class Depute:
-    """Représente un député de l'Assemblée nationale."""
+    """Représente un député actif de la 17e législature."""
     uid: str
     nom: str
     prenom: str
@@ -32,6 +32,7 @@ class Depute:
     departement_naissance: Optional[str] = None
     profession: Optional[str]            = None
     url_photo: Optional[str]             = None
+    groupe_sigle: Optional[str]          = None
 
 
 @dataclass
@@ -48,6 +49,26 @@ class Scrutin:
     contre: int                 = 0
     abstention: int             = 0
     non_votant: int             = 0
+
+
+# ─── Mapping sigle officiel → sigle en base ───────────────────────────────────
+
+SIGLE_MAP = {
+    "RN":      "RN",
+    "EPR":     "EPR",
+    "LFI-NFP": "LFI-NFP",
+    "SOC":     "SOC",
+    "DR":      "DR",
+    "ECO":     "ECO",
+    "EcoS":    "ECO",
+    "DEM":     "DEM",
+    "Dem":     "DEM",
+    "HOR":     "HOR",
+    "LIOT":    "LIOT",
+    "GDR":     "GDR",
+    "UDR":     "UDR",
+    "NI":      "NI",
+}
 
 
 # ─── Classe de base ───────────────────────────────────────────────────────────
@@ -75,12 +96,6 @@ class BaseCollector:
     def _telecharger_zip(self, url: str) -> Optional[zipfile.ZipFile]:
         """
         Télécharge un fichier ZIP et retourne un objet ZipFile en mémoire.
-
-        Args:
-            url: URL du fichier ZIP
-
-        Returns:
-            ZipFile ouvert en mémoire, ou None en cas d'erreur
         """
         try:
             nom_fichier = url.split("/")[-1]
@@ -100,15 +115,12 @@ class BaseCollector:
         except requests.exceptions.Timeout:
             logger.error(f"Timeout lors du téléchargement de {url}")
             return None
-
         except requests.exceptions.HTTPError as e:
             logger.error(f"Erreur HTTP {e.response.status_code} sur {url}")
             return None
-
         except zipfile.BadZipFile:
             logger.error(f"Fichier ZIP corrompu : {url}")
             return None
-
         except requests.exceptions.RequestException as e:
             logger.error(f"Erreur réseau inattendue : {e}")
             return None
@@ -116,28 +128,16 @@ class BaseCollector:
     def _lire_json(
         self, zip_file: zipfile.ZipFile, chemin: str
     ) -> Optional[dict]:
-        """
-        Lit et parse un fichier JSON depuis un ZIP ouvert.
-
-        Args:
-            zip_file: ZipFile ouvert
-            chemin: Chemin du fichier JSON dans le ZIP
-
-        Returns:
-            Données JSON parsées, ou None en cas d'erreur
-        """
+        """Lit et parse un fichier JSON depuis un ZIP ouvert."""
         try:
             with zip_file.open(chemin) as f:
                 return json.loads(f.read().decode("utf-8"))
-
         except KeyError:
             logger.error(f"Fichier '{chemin}' introuvable dans le ZIP")
             return None
-
         except json.JSONDecodeError as e:
             logger.error(f"Erreur JSON dans '{chemin}' : {e}")
             return None
-
         except Exception as e:
             logger.error(f"Erreur lecture '{chemin}' : {e}")
             return None
@@ -147,48 +147,123 @@ class BaseCollector:
 
 class DeputesCollector(BaseCollector):
     """
-    Collecte les députés depuis l'OpenData de l'Assemblée nationale.
+    Collecte les députés actifs de la 17e législature.
+    Source : ZIP AMO10 contenant acteurs + mandats + organes.
 
-    Le ZIP contient un fichier JSON par acteur dans json/acteur/PA{id}.json.
-    Structure d'un fichier :
-        {
-          "acteur": {
-            "uid": {"#text": "PA267551"},
-            "etatCivil": {
-              "ident": {"civ": "M.", "prenom": "Jacques", "nom": "Lamblin"},
-              "infoNaissance": {"dateNais": "1952-08-29", "villeNais": "Nancy"}
-            },
-            "profession": {"libelleCourant": "Vétérinaire"}
-          }
-        }
+    Le mapping groupe politique est construit depuis les organes
+    et appliqué directement à chaque député.
     """
 
     URL_ZIP = (
         "https://data.assemblee-nationale.fr/static/openData/repository/17/"
-        "amo/tous_acteurs_mandats_organes_xi_legislature/"
-        "AMO30_tous_acteurs_tous_mandats_tous_organes_historique.json.zip"
+        "amo/deputes_actifs_mandats_actifs_organes/"
+        "AMO10_deputes_actifs_mandats_actifs_organes.json.zip"
     )
 
     def __init__(self):
         super().__init__()
         self.deputes: list[Depute] = []
 
+    def _construire_mapping_organe_sigle(
+        self, zip_file: zipfile.ZipFile
+    ) -> dict:
+        """
+        Construit le mapping organeRef (PO...) → sigle
+        depuis les fichiers organe de type GP.
+        """
+        mapping = {}
+        organes = [
+            f for f in zip_file.namelist()
+            if "organe" in f.lower() and f.endswith(".json")
+        ]
+
+        for nom in organes:
+            try:
+                data = self._lire_json(zip_file, nom)
+                if data is None:
+                    continue
+                o = data.get("organe", {})
+                if o.get("codeType") != "GP":
+                    continue
+                uid_organe = o.get("uid", "")
+                sigle_brut = o.get("libelleAbrege", "")
+                sigle = SIGLE_MAP.get(sigle_brut, sigle_brut)
+                if uid_organe and sigle:
+                    mapping[uid_organe] = sigle
+            except Exception:
+                continue
+
+        logger.info(f"Mapping organe → sigle : {len(mapping)} groupes")
+        return mapping
+
+    def _construire_mapping_depute_groupe(
+        self,
+        zip_file: zipfile.ZipFile,
+        mapping_organe: dict
+    ) -> dict:
+        """
+        Construit le mapping uid_acteur (PA...) → sigle_groupe
+        depuis les mandats de type GP dans les fichiers acteurs.
+        """
+        mapping = {}
+        acteurs = [
+            f for f in zip_file.namelist()
+            if "acteur" in f.lower() and f.endswith(".json")
+        ]
+
+        for nom in acteurs:
+            try:
+                data = self._lire_json(zip_file, nom)
+                if data is None:
+                    continue
+                acteur = data.get("acteur", {})
+
+                uid_raw = acteur.get("uid", {})
+                uid = uid_raw.get("#text", "") \
+                      if isinstance(uid_raw, dict) else uid_raw
+                if not uid:
+                    continue
+
+                mandats = acteur.get("mandats", {}).get("mandat", [])
+                if isinstance(mandats, dict):
+                    mandats = [mandats]
+
+                for mandat in mandats:
+                    if mandat.get("typeOrgane") != "GP":
+                        continue
+                    if mandat.get("dateFin") is not None:
+                        continue
+                    organe_ref = mandat.get("organes", {}).get("organeRef", "")
+                    sigle = mapping_organe.get(organe_ref)
+                    if sigle:
+                        mapping[uid] = sigle
+                        break
+
+            except Exception:
+                continue
+
+        logger.info(f"Mapping député → groupe : {len(mapping)} entrées")
+        return mapping
+
     def collecter(self, limite: Optional[int] = None) -> list[Depute]:
         """
-        Télécharge et parse tous les acteurs du ZIP.
-
-        Args:
-            limite: Nombre maximum de députés (None = tous)
-
-        Returns:
-            Liste d'objets Depute
+        Télécharge le ZIP AMO10, construit le mapping des groupes
+        et parse les 575 députés actifs avec leur groupe politique.
         """
-        logger.info("Début collecte des députés — Assemblée nationale OpenData")
+        logger.info(
+            "Début collecte des députés actifs — 17e législature"
+        )
 
         try:
             zip_file = self._telecharger_zip(self.URL_ZIP)
             if zip_file is None:
                 return []
+
+            # Mapping groupe depuis les organes
+            mapping_organe = self._construire_mapping_organe_sigle(zip_file)
+            mapping_depute = self._construire_mapping_depute_groupe(
+                zip_file, mapping_organe
+            )
 
             fichiers_acteurs = [
                 f for f in zip_file.namelist()
@@ -205,16 +280,16 @@ class DeputesCollector(BaseCollector):
                     data = self._lire_json(zip_file, chemin)
                     if data is None:
                         continue
-
-                    depute = self._parser_depute(data)
+                    depute = self._parser_depute(data, mapping_depute)
                     if depute:
                         self.deputes.append(depute)
-
                 except Exception as e:
                     logger.warning(f"Erreur sur {chemin} : {e}")
                     continue
 
-            logger.success(f"Collecte terminée : {len(self.deputes)} députés")
+            logger.success(
+                f"Collecte terminée : {len(self.deputes)} députés actifs"
+            )
             return self.deputes
 
         except Exception as e:
@@ -222,16 +297,7 @@ class DeputesCollector(BaseCollector):
             return []
 
     def _extraire_valeur(self, valeur) -> Optional[str]:
-        """
-        Extrait une valeur string depuis un champ qui peut être
-        un dict XML nul {"@xsi:nil": "true"} ou une chaîne.
-
-        Args:
-            valeur: La valeur brute du JSON
-
-        Returns:
-            Chaîne extraite ou None
-        """
+        """Extrait une valeur string depuis un champ XML potentiellement nul."""
         if valeur is None:
             return None
         if isinstance(valeur, dict):
@@ -240,21 +306,16 @@ class DeputesCollector(BaseCollector):
             return valeur.get("#text")
         return str(valeur) if valeur else None
 
-    def _parser_depute(self, data: dict) -> Optional[Depute]:
+    def _parser_depute(
+        self, data: dict, mapping_groupe: dict = {}
+    ) -> Optional[Depute]:
         """
-        Parse les données brutes d'un acteur en objet Depute.
-        Gère les champs nuls au format XML {"@xsi:nil": "true"}.
-
-        Args:
-            data: Dictionnaire brut depuis le JSON
-
-        Returns:
-            Objet Depute ou None si données invalides
+        Parse les données brutes d'un acteur en objet Depute
+        avec son groupe politique.
         """
         try:
             acteur = data.get("acteur", {})
 
-            # uid peut être un dict {"#text": "PA..."} ou une chaîne
             uid_raw = acteur.get("uid", {})
             uid = uid_raw.get("#text", "") \
                   if isinstance(uid_raw, dict) else uid_raw
@@ -269,13 +330,15 @@ class DeputesCollector(BaseCollector):
             if not uid or not nom:
                 return None
 
-            # Profession
             profession_data = acteur.get("profession", {})
             profession = None
             if isinstance(profession_data, dict):
                 profession = self._extraire_valeur(
                     profession_data.get("libelleCourant")
                 )
+
+            # Groupe politique depuis le mapping
+            groupe_sigle = mapping_groupe.get(uid)
 
             return Depute(
                 uid=uid,
@@ -296,6 +359,7 @@ class DeputesCollector(BaseCollector):
                     f"https://www.assemblee-nationale.fr"
                     f"/dyn/deputes/photos/{uid}.jpg"
                 ),
+                groupe_sigle=groupe_sigle,
             )
 
         except Exception as e:
@@ -307,27 +371,8 @@ class DeputesCollector(BaseCollector):
 
 class ScrutinsCollector(BaseCollector):
     """
-    Collecte les scrutins depuis l'OpenData de l'Assemblée nationale.
-
-    Le ZIP contient un fichier JSON par scrutin dans json/VTANR5L17V{n}.json.
-    Structure d'un fichier :
-        {
-          "scrutin": {
-            "uid": "VTANR5L17V2657",
-            "numero": "2657",
-            "dateScrutin": "2025-06-24",
-            "legislature": "17",
-            "typeVote": {"libelleTypeVote": "scrutin public ordinaire"},
-            "sort": {"code": "adopté"},
-            "titre": "...",
-            "syntheseVote": {
-              "decompte": {
-                "pour": "312", "contre": "214",
-                "abstentions": "18", "nonVotants": "6"
-              }
-            }
-          }
-        }
+    Collecte les scrutins publics de la 17e législature.
+    Source : ZIP Scrutins.json.zip
     """
 
     URL_ZIP = (
@@ -340,15 +385,7 @@ class ScrutinsCollector(BaseCollector):
         self.scrutins: list[Scrutin] = []
 
     def collecter(self, limite: Optional[int] = None) -> list[Scrutin]:
-        """
-        Télécharge et parse tous les scrutins du ZIP.
-
-        Args:
-            limite: Nombre maximum de scrutins (None = tous)
-
-        Returns:
-            Liste d'objets Scrutin
-        """
+        """Télécharge et parse tous les scrutins du ZIP."""
         logger.info("Début collecte des scrutins")
 
         try:
@@ -371,16 +408,16 @@ class ScrutinsCollector(BaseCollector):
                     data = self._lire_json(zip_file, chemin)
                     if data is None:
                         continue
-
                     scrutin = self._parser_scrutin(data)
                     if scrutin:
                         self.scrutins.append(scrutin)
-
                 except Exception as e:
                     logger.warning(f"Erreur sur {chemin} : {e}")
                     continue
 
-            logger.success(f"Collecte terminée : {len(self.scrutins)} scrutins")
+            logger.success(
+                f"Collecte terminée : {len(self.scrutins)} scrutins"
+            )
             return self.scrutins
 
         except Exception as e:
@@ -388,15 +425,7 @@ class ScrutinsCollector(BaseCollector):
             return []
 
     def _parser_scrutin(self, data: dict) -> Optional[Scrutin]:
-        """
-        Parse les données brutes d'un scrutin en objet Scrutin.
-
-        Args:
-            data: Dictionnaire brut depuis le JSON
-
-        Returns:
-            Objet Scrutin ou None si données invalides
-        """
+        """Parse les données brutes d'un scrutin en objet Scrutin."""
         try:
             s = data.get("scrutin", {})
 
@@ -410,7 +439,6 @@ class ScrutinsCollector(BaseCollector):
             decompte  = synthese.get("decompte", {})
 
             def to_int(val) -> int:
-                """Convertit une valeur en entier de façon sécurisée."""
                 try:
                     return int(val or 0)
                 except (ValueError, TypeError):

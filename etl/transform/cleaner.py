@@ -63,7 +63,7 @@ class ScrutinClean:
 class DataCleaner:
     """
     Nettoie et normalise les données brutes collectées.
-    Enrichit les députés avec leur groupe politique.
+    Le groupe politique est déjà résolu dans DeputesCollector.
     """
 
     TOTAL_DEPUTES = 577  # Assemblée nationale française
@@ -87,25 +87,17 @@ class DataCleaner:
             deputes_bruts: Liste de Depute depuis DeputesCollector
             scrutins_bruts: Liste de Scrutin depuis ScrutinsCollector
             groupes_bruts: Liste de GroupePolitique depuis GroupesScraper
-            organes_bruts: Données organes du ZIP (optionnel)
+            organes_bruts: Non utilisé, conservé pour compatibilité
 
         Returns:
             Tuple (deputes_clean, scrutins_clean)
         """
         logger.info("Début de la transformation des données")
 
-        # Construit le mapping uid_depute → groupe
-        mapping_groupe = self._construire_mapping_groupes(
-            groupes_bruts, organes_bruts
-        )
-        logger.info(f"Mapping groupe : {len(mapping_groupe)} entrées")
-
-        # Construit le mapping sigle → nom complet du groupe
+        # Mapping sigle → nom complet du groupe depuis le scraping HTML
         mapping_nom_groupe = {g.sigle: g.nom for g in groupes_bruts}
 
-        deputes_clean = self._nettoyer_deputes(
-            deputes_bruts, mapping_groupe, mapping_nom_groupe
-        )
+        deputes_clean  = self._nettoyer_deputes(deputes_bruts, mapping_nom_groupe)
         scrutins_clean = self._nettoyer_scrutins(scrutins_bruts)
 
         logger.success(
@@ -114,138 +106,44 @@ class DataCleaner:
         )
         return deputes_clean, scrutins_clean
 
-    # ── Mapping groupe ────────────────────────────────────────────────────────
-
-    def _construire_mapping_groupes(
-        self,
-        groupes: list,
-        organes_bruts: list = None
-    ) -> dict[str, str]:
-        """
-        Construit un mapping uid_depute → sigle_groupe
-        depuis les données des organes du ZIP officiel.
-
-        Args:
-            groupes: Liste de GroupePolitique
-            organes_bruts: Données organes du ZIP (optionnel)
-
-        Returns:
-            Dict {uid_depute: sigle_groupe}
-        """
-        mapping = {}
-
-        try:
-            if organes_bruts:
-                # Utilise les données organes du ZIP
-                for organe in organes_bruts:
-                    try:
-                        o = organe.get("organe", organe)
-                        code_type = o.get("codeType", "")
-
-                        # GP = Groupe Politique
-                        if code_type != "GP":
-                            continue
-
-                        libelle = o.get("libelle", "")
-                        sigle = self._trouver_sigle_depuis_libelle(
-                            libelle, groupes
-                        )
-
-                        if not sigle:
-                            continue
-
-                        # Membres de l'organe
-                        membres = (
-                            o.get("membres", {})
-                             .get("membre", [])
-                        )
-                        if isinstance(membres, dict):
-                            membres = [membres]
-
-                        for membre in membres:
-                            uid = membre.get("acteurRef", "")
-                            if uid:
-                                mapping[uid] = sigle
-
-                    except Exception as e:
-                        logger.warning(f"Erreur organe : {e}")
-                        continue
-
-            logger.info(f"Mapping depuis organes : {len(mapping)} entrées")
-
-        except Exception as e:
-            logger.error(f"Erreur construction mapping : {e}")
-
-        return mapping
-
-    def _trouver_sigle_depuis_libelle(
-        self, libelle: str, groupes: list
-    ) -> Optional[str]:
-        """
-        Cherche le sigle correspondant à un libellé d'organe.
-
-        Args:
-            libelle: Nom de l'organe
-            groupes: Liste des groupes scrapés
-
-        Returns:
-            Sigle du groupe ou None
-        """
-        libelle_lower = libelle.lower()
-
-        for groupe in groupes:
-            if (
-                groupe.nom.lower() in libelle_lower
-                or libelle_lower in groupe.nom.lower()
-                or groupe.slug.replace("-", " ") in libelle_lower
-            ):
-                return groupe.sigle
-
-        return None
-
     # ── Nettoyage des députés ─────────────────────────────────────────────────
 
     def _nettoyer_deputes(
         self,
         deputes: list,
-        mapping_groupe: dict,
         mapping_nom_groupe: dict,
     ) -> list[DeputeClean]:
         """
         Nettoie et enrichit la liste des députés.
+        Le groupe_sigle est déjà résolu dans DeputesCollector.
 
         Args:
             deputes: Liste brute de Depute
-            mapping_groupe: uid → sigle_groupe
             mapping_nom_groupe: sigle → nom_groupe
 
         Returns:
-            Liste de DeputeClean
+            Liste de DeputeClean — uniquement les députés avec un groupe
         """
         results = []
         sans_groupe = 0
 
         for d in deputes:
             try:
-                # Nettoyage des chaînes
                 nom    = self._nettoyer_texte(d.nom)
                 prenom = self._nettoyer_texte(d.prenom)
 
                 if not nom or not prenom:
                     continue
 
-                nom_complet = f"{prenom} {nom}"
-
-                # Calcul de l'âge
-                age = self._calculer_age(d.date_naissance)
-
-                # Groupe politique
-                groupe_sigle = mapping_groupe.get(d.uid)
+                nom_complet  = f"{prenom} {nom}"
+                age          = self._calculer_age(d.date_naissance)
+                groupe_sigle = d.groupe_sigle
                 groupe_nom   = mapping_nom_groupe.get(groupe_sigle) \
                                if groupe_sigle else None
 
                 if not groupe_sigle:
                     sans_groupe += 1
+                    continue  # On ne garde que les députés actifs avec groupe
 
                 results.append(DeputeClean(
                     uid=d.uid,
@@ -270,8 +168,8 @@ class DataCleaner:
                 continue
 
         logger.info(
-            f"Députés nettoyés : {len(results)} "
-            f"({sans_groupe} sans groupe)"
+            f"Députés nettoyés : {len(results)} actifs "
+            f"({sans_groupe} sans groupe ignorés)"
         )
         return results
 
@@ -291,36 +189,31 @@ class DataCleaner:
 
         for s in scrutins:
             try:
-                # Numéro en entier
                 numero = None
                 try:
                     numero = int(s.numero) if s.numero else None
                 except (ValueError, TypeError):
                     pass
 
-                # Date
                 date_str = s.date
                 annee    = None
                 mois     = None
                 if date_str:
                     try:
-                        dt   = datetime.strptime(date_str, "%Y-%m-%d")
+                        dt    = datetime.strptime(date_str, "%Y-%m-%d")
                         annee = dt.year
                         mois  = dt.month
                     except ValueError:
                         pass
 
-                # Sort → booléen
                 adopte = None
                 if s.sort:
                     adopte = "adopt" in s.sort.lower()
 
-                # Total votants et taux de participation
                 total = s.pour + s.contre + s.abstention
                 taux  = round((total / self.TOTAL_DEPUTES) * 100, 1) \
                         if total > 0 else None
 
-                # Titre court (100 premiers caractères)
                 titre_court = None
                 if s.titre:
                     titre_court = s.titre[:100].strip()
@@ -357,10 +250,7 @@ class DataCleaner:
     # ── Utilitaires ───────────────────────────────────────────────────────────
 
     def _nettoyer_texte(self, texte: Optional[str]) -> Optional[str]:
-        """
-        Nettoie une chaîne de caractères.
-        Supprime les espaces multiples et les caractères parasites.
-        """
+        """Nettoie une chaîne de caractères."""
         if not texte:
             return None
         try:
@@ -371,13 +261,11 @@ class DataCleaner:
             return None
 
     def _calculer_age(self, date_naissance: Optional[str]) -> Optional[int]:
-        """
-        Calcule l'âge depuis une date de naissance au format YYYY-MM-DD.
-        """
+        """Calcule l'âge depuis une date de naissance au format YYYY-MM-DD."""
         if not date_naissance:
             return None
         try:
-            naissance = datetime.strptime(date_naissance, "%Y-%m-%d")
+            naissance   = datetime.strptime(date_naissance, "%Y-%m-%d")
             aujourd_hui = datetime.now()
             age = aujourd_hui.year - naissance.year
             if (aujourd_hui.month, aujourd_hui.day) < \
