@@ -1,8 +1,8 @@
 # Assemblée nationale · Pipeline Data Cloud
-### 17e législature — Analyse des données parlementaires françaises
+### 17e législature - Analyse des données parlementaires françaises
 
 **Samir NZAMBA** · Mastère DPIA 1 · L'École Multimédia · Paris · 2025-2026  
-Projet #2 — Infrastructure Data Cloud
+Projet #2 - Infrastructure Data Cloud
 
 ---
 
@@ -16,15 +16,15 @@ La collecte repose sur deux sources complémentaires : l'**API officielle** de l
 
 ## Stack technique
 
-**Collecte** — Python, requests, BeautifulSoup  
-**Data Lake** — MinIO (compatible API AWS S3)  
-**Data Warehouse** — PostgreSQL 15  
-**Orchestration** — Apache Airflow 2.9  
-**Monitoring** — Prometheus, Grafana  
-**Dashboard** — Streamlit  
-**Tests** — pytest, pytest-cov (37/37)  
-**CI/CD** — GitHub Actions  
-**Infra** — Docker, Docker Compose
+**Collecte** : Python, requests, BeautifulSoup  
+**Data Lake** : MinIO (compatible API AWS S3)  
+**Data Warehouse** : PostgreSQL 15  
+**Orchestration** : Apache Airflow 2.9  
+**Monitoring** : Prometheus, Grafana  
+**Dashboard** : Streamlit  
+**Tests** : pytest, pytest-cov (37/37)  
+**CI/CD** : GitHub Actions  
+**Infra** : Docker, Docker Compose
 
 ---
 
@@ -62,7 +62,7 @@ API officielle AN (ZIP)       Scraping HTML (groupes politiques)
 Identité civile, date et lieu de naissance, profession, groupe politique, photo  
 Source : `AMO10_deputes_actifs_mandats_actifs_organes.json.zip`
 
-**5 828 scrutins publics** · juillet 2024 — mars 2026  
+**5 828 scrutins publics** · juillet 2024 - mars 2026  
 Titre, date, résultat, votes pour/contre/abstentions, taux de participation  
 Source : `scrutins.json.zip`
 
@@ -93,7 +93,7 @@ data-pipeline-emploi/
 │   └── workflows/
 │       └── ci.yml                   # Pipeline CI/CD GitHub Actions
 ├── dags/
-│   └── dag_assemblee_nationale.py   # DAG Airflow — 6 tâches
+│   └── dag_assemblee_nationale.py   # DAG Airflow - 6 tâches
 ├── dashboards/
 │   └── streamlit/
 │       └── app.py                   # Dashboard principal Streamlit
@@ -105,15 +105,15 @@ data-pipeline-emploi/
 │   └── dashboard.md
 ├── etl/
 │   ├── scrapers/
-│   │   ├── nosdeputes_scraper.py    # Collecte API ZIP — députés et scrutins
-│   │   └── groupes_scraper.py       # Scraping HTML — groupes politiques
+│   │   ├── nosdeputes_scraper.py    # Collecte API ZIP - députés et scrutins
+│   │   └── groupes_scraper.py       # Scraping HTML - groupes politiques
 │   ├── transform/
 │   │   └── cleaner.py               # Nettoyage et enrichissement
 │   ├── load/
 │   │   ├── minio_loader.py          # Chargement Data Lake MinIO
 │   │   └── postgres_loader.py       # Chargement Data Warehouse PostgreSQL
 │   ├── pipeline.py                  # Pipeline ETL en ligne de commande
-│   └── fix_groupes.py               # Mapping député → groupe politique
+│   └── fix_groupes.py               # Mapping député vers groupe politique
 ├── infra/
 │   ├── grafana/
 │   │   └── provisioning/
@@ -131,7 +131,7 @@ data-pipeline-emploi/
 │   ├── test_scraper.py
 │   ├── test_cleaner.py
 │   └── test_loaders.py
-├── .env.example                     # Modèle de configuration — à copier en .env
+├── .env.example                     # Modèle de configuration à copier en .env
 ├── .gitignore
 ├── docker-compose.yml
 ├── requirements.txt
@@ -142,7 +142,7 @@ data-pipeline-emploi/
 
 ## Installation et démarrage
 
-L'ordre des étapes est important — respectez-le.
+L'ordre des étapes est important, respectez-le.
 
 ### Prérequis
 
@@ -158,24 +158,24 @@ cd data-pipeline-emploi
 
 ### 2. Configurer l'environnement
 
-Créez le fichier `.env` avant toute autre étape — Docker en a besoin au démarrage :
+Créez le fichier `.env` avant toute autre étape, Docker en a besoin au démarrage :
 ```bash
 cp .env.example .env
 ```
 
 Ouvrez `.env` et remplacez les valeurs fictives par les vôtres :
 ```env
-# MinIO — Data Lake local
+# MinIO - Data Lake local
 MINIO_ROOT_USER=votre_user_minio
 MINIO_ROOT_PASSWORD=votre_mot_de_passe_minio
 
-# PostgreSQL — Data Warehouse local
+# PostgreSQL - Data Warehouse local
 POSTGRES_DB=jobs_db
 POSTGRES_USER=votre_user_postgres
 POSTGRES_PASSWORD=votre_mot_de_passe_postgres
 ```
 
-Le nom de la base `jobs_db` doit rester tel quel. Toutes les autres valeurs sont libres. Ce fichier ne doit jamais être commité — il est exclu par `.gitignore`.
+Le nom de la base `jobs_db` doit rester tel quel. Toutes les autres valeurs sont libres. Ce fichier ne doit jamais être commité, il est exclu par `.gitignore`.
 
 ### 3. Créer l'environnement virtuel Python
 ```bash
@@ -214,7 +214,7 @@ Les services suivants doivent afficher le statut **Up** :
 | airflow_webserver | Interface Airflow |
 | airflow_scheduler | Planificateur Airflow |
 
-`airflow_init` apparaît comme `Exited (0)` — c'est normal, c'est un service d'initialisation one-shot.
+`airflow_init` apparaît comme `Exited (0)`, c'est normal, c'est un service d'initialisation one-shot.
 
 ### 6. Alimenter la base de données
 
@@ -225,7 +225,7 @@ python etl/pipeline.py
 
 Comptez 2 à 5 minutes selon votre connexion. Le pipeline affiche sa progression en temps réel et se termine par un résumé indiquant le nombre de groupes, députés et scrutins collectés et chargés.
 
-Lancez ensuite le script de mapping. Il lit les mandats officiels dans le ZIP de l'API, identifie le groupe politique actif de chaque député et met à jour PostgreSQL en conséquence :
+Lancez ensuite le script de mapping. Il lit les mandats officiels dans le ZIP de l'API, identifie le groupe politique actif de chaque député et met à jour PostgreSQL :
 ```bash
 python etl/fix_groupes.py
 ```
@@ -236,7 +236,7 @@ Le script affiche la répartition finale par groupe. Vous devez voir 575 déput�
 
 Ouvrez **http://localhost:3000** et connectez-vous avec `admin / admin`.
 
-Allez dans **Connections → Data sources → PostgreSQL**. Dans le champ **Password**, saisissez la valeur que vous avez définie pour `POSTGRES_PASSWORD` dans votre `.env`. Cliquez **Save & test** — vous devez voir `Database Connection OK`.
+Allez dans **Connections > Data sources > PostgreSQL**. Dans le champ **Password**, saisissez la valeur que vous avez définie pour `POSTGRES_PASSWORD` dans votre `.env`. Cliquez **Save & test**, vous devez voir `Database Connection OK`.
 
 Le dashboard de monitoring est provisionné automatiquement et s'affiche immédiatement.
 
@@ -256,7 +256,7 @@ Ouvrez **http://localhost:5050** (admin@admin.com / admin). Ajoutez un nouveau s
 
 Ouvrez **http://localhost:8080** et connectez-vous avec `admin / admin`.
 
-Localisez le DAG `pipeline_assemblee_nationale` et activez-le via le toggle — il passe de **Paused** à **Active**. Le pipeline s'exécute ensuite automatiquement chaque jour à 6h00. Pour un déclenchement manuel immédiat, utilisez le bouton **Trigger DAG**.
+Localisez le DAG `pipeline_assemblee_nationale` et activez-le via le toggle, il passe de **Paused** à **Active**. Le pipeline s'exécute ensuite automatiquement chaque jour à 6h00. Pour un déclenchement manuel immédiat, utilisez le bouton **Trigger DAG**.
 
 ### 10. Lancer le dashboard Streamlit
 ```bash
@@ -271,16 +271,16 @@ Ouvrez **http://localhost:8501**.
 
 | Service | URL | Identifiants |
 |---|---|---|
-| Streamlit | http://localhost:8501 | — |
+| Streamlit | http://localhost:8501 | - |
 | Grafana | http://localhost:3000 | admin / admin |
 | Airflow | http://localhost:8080 | admin / admin |
 | MinIO | http://localhost:9001 | Vos identifiants `.env` |
 | pgAdmin | http://localhost:5050 | admin@admin.com / admin |
-| Prometheus | http://localhost:9090 | — |
+| Prometheus | http://localhost:9090 | - |
 
 ---
 
-## Pipeline ETL — options CLI
+## Pipeline ETL - Options CLI
 ```bash
 python etl/pipeline.py                          # pipeline complet
 python etl/pipeline.py --scrutins-limite 500    # limite les scrutins collectés
@@ -302,7 +302,7 @@ scraper_groupes (t1)
         └──► collecter_scrutins (t3) ─► load_minio (t4) ─► transform (t5) ─► load_postgres (t6)
 ```
 
-2 retries automatiques · délai de 5 minutes entre chaque tentative · schedule quotidien à 6h00.
+2 retries automatiques, délai de 5 minutes entre chaque tentative, schedule quotidien à 6h00.
 
 ---
 
@@ -313,9 +313,9 @@ Les notebooks sont indépendants et peuvent être lancés dans n'importe quel or
 jupyter notebook
 ```
 
-- `01_exploration.ipynb` — exploration générale, statistiques descriptives
-- `02_analyse_scrutins.ipynb` — analyse des 5 828 scrutins publics
-- `03_analyse_deputes.ipynb` — analyse démographique des 575 députés
+- `01_exploration.ipynb` : exploration générale, statistiques descriptives
+- `02_analyse_scrutins.ipynb` : analyse des 5 828 scrutins publics
+- `03_analyse_deputes.ipynb` : analyse démographique des 575 députés
 
 Les visualisations sont exportées dans `data/processed/`.
 
@@ -339,10 +339,10 @@ Le pipeline GitHub Actions se déclenche à chaque push ou pull request sur `mai
 
 ## Monitoring
 
-**Prometheus** — http://localhost:9090  
-Collecte les métriques toutes les 15 secondes depuis trois cibles : Prometheus lui-même, PostgreSQL via le postgres-exporter, et MinIO. Vérifiez que les trois targets sont **UP** dans **Status → Targets**.
+**Prometheus** - http://localhost:9090  
+Collecte les métriques toutes les 15 secondes depuis trois cibles : Prometheus lui-même, PostgreSQL via le postgres-exporter, et MinIO. Vérifiez que les trois targets sont **UP** dans **Status > Targets**.
 
-**Grafana** — http://localhost:3000  
+**Grafana** - http://localhost:3000  
 Dashboard provisionné automatiquement avec les métriques métier du pipeline : KPIs, scrutins par mois, taux de participation, évolution du taux d'adoption et bilan annuel.
 
 ---
@@ -362,8 +362,8 @@ docker compose up -d
 
 # 4. Ressaisir le mot de passe PostgreSQL dans Grafana
 #    http://localhost:3000
-#    Connections → Data sources → PostgreSQL
-#    Champ Password → votre POSTGRES_PASSWORD → Save & test
+#    Connections > Data sources > PostgreSQL
+#    Champ Password > votre POSTGRES_PASSWORD > Save & test
 
 # 5. Vérifier qu'Airflow est toujours actif
 #    http://localhost:8080
@@ -377,6 +377,6 @@ streamlit run dashboards/streamlit/app.py
 
 ## Contexte académique
 
-Projet réalisé dans le cadre du Mastère DPIA 1 — Directeur de Projet en Intelligence Artificielle à L'École Multimédia (Paris), année 2025-2026.
+Projet réalisé dans le cadre du Mastère DPIA 1 - Directeur de Projet en Intelligence Artificielle à L'École Multimédia (Paris), année 2025-2026.
 
-Données source sous [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence) — Assemblée nationale française.
+Données source sous [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence) - Assemblée nationale française.
