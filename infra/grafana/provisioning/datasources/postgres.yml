@@ -14,3 +14,11 @@ datasources:
       timescaledb: false
     isDefault: true
     editable: true
+
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    jsonData:
+      timeInterval: 15s

@@ -10,6 +10,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_PROMETHEUS_AUTH_TYPE: "public"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -53,6 +54,38 @@ services:
       - postgres
     restart: unless-stopped
 
+  # ── Prometheus — collecte de métriques ───────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+    depends_on:
+      - postgres
+      - minio
+    restart: unless-stopped
+
+  # ── Postgres Exporter — expose les métriques PostgreSQL ──────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres_exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://jobs_user:jobs_password123@postgres_jobs:5432/jobs_db?sslmode=disable"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
   # ── Grafana — Monitoring et dashboards ───────────────────────────
   grafana:
     image: grafana/grafana:latest
@@ -68,6 +101,7 @@ services:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - postgres
+      - prometheus
     restart: unless-stopped
 
   # ── Base de données interne Airflow ───────────────────────────────
@@ -171,3 +205,4 @@ volumes:
   postgres_data:
   postgres_airflow_data:
   grafana_data:
+  prometheus_data:
