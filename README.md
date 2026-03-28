@@ -8,9 +8,11 @@ Projet #2 - Infrastructure Data Cloud
 
 ## À propos
 
-Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 575 députés actifs et des 5 828 scrutins publics enregistrés depuis juillet 2024.
+Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 577 députés actifs et des 5 847 scrutins publics enregistrés depuis juillet 2024.
 
 La collecte repose sur deux sources complémentaires : l'**API officielle** de l'Assemblée nationale pour les données structurées (députés et scrutins au format ZIP JSON) et du **scraping HTML** pour les groupes politiques, qui ne sont pas exposés via l'API. Les données brutes transitent par un Data Lake MinIO avant d'être nettoyées, enrichies et chargées dans un Data Warehouse PostgreSQL. Le tout est orchestré par Airflow, supervisé par Prometheus et Grafana, et exposé via un dashboard Streamlit interactif.
+
+L'infrastructure est déployable aussi bien en local via Docker que sur AWS EC2, MinIO étant compatible avec l'API AWS S3.
 
 ---
 
@@ -24,7 +26,8 @@ La collecte repose sur deux sources complémentaires : l'**API officielle** de l
 **Dashboard** : Streamlit  
 **Tests** : pytest, pytest-cov (37/37)  
 **CI/CD** : GitHub Actions  
-**Infra** : Docker, Docker Compose
+**Infra locale** : Docker, Docker Compose  
+**Infra cloud** : AWS EC2 (Ubuntu 22.04, région eu-west-3 Paris)
 
 ---
 
@@ -40,7 +43,7 @@ API officielle AN (ZIP)       Scraping HTML (groupes politiques)
                         │ Transform
                         ▼
                    DataCleaner
-           (nettoyage, enrichissement, mapping)
+           (nettoyage, enrichissement, mapping groupes)
                         │ Load
                         ▼
                 PostgreSQL · Data Warehouse
@@ -58,13 +61,13 @@ API officielle AN (ZIP)       Scraping HTML (groupes politiques)
 
 ## Données
 
-**575 députés actifs** · 17e législature uniquement  
+**577 députés actifs** · 17e législature uniquement  
 Identité civile, date et lieu de naissance, profession, groupe politique, photo  
 Source : `AMO10_deputes_actifs_mandats_actifs_organes.json.zip`
 
-**5 828 scrutins publics** · juillet 2024 - mars 2026  
+**5 847 scrutins publics** · juillet 2024 - mars 2026  
 Titre, date, résultat, votes pour/contre/abstentions, taux de participation  
-Source : `scrutins.json.zip`
+Source : `Scrutins.json.zip`
 
 **12 groupes politiques** · composition réelle de l'hémicycle  
 Source : scraping `assemblee-nationale.fr/dyn/les-groupes-politiques`
@@ -105,15 +108,14 @@ data-pipeline-emploi/
 │   └── dashboard.md
 ├── etl/
 │   ├── scrapers/
-│   │   ├── nosdeputes_scraper.py    # Collecte API ZIP - députés et scrutins
+│   │   ├── nosdeputes_scraper.py    # Collecte API ZIP - députés actifs avec mapping groupes
 │   │   └── groupes_scraper.py       # Scraping HTML - groupes politiques
 │   ├── transform/
 │   │   └── cleaner.py               # Nettoyage et enrichissement
 │   ├── load/
 │   │   ├── minio_loader.py          # Chargement Data Lake MinIO
 │   │   └── postgres_loader.py       # Chargement Data Warehouse PostgreSQL
-│   ├── pipeline.py                  # Pipeline ETL en ligne de commande
-│   └── fix_groupes.py               # Mapping député vers groupe politique
+│   └── pipeline.py                  # Pipeline ETL en ligne de commande
 ├── infra/
 │   ├── grafana/
 │   │   └── provisioning/
@@ -140,9 +142,7 @@ data-pipeline-emploi/
 
 ---
 
-## Installation et démarrage
-
-L'ordre des étapes est important, respectez-le.
+## Déploiement local
 
 ### Prérequis
 
@@ -175,7 +175,7 @@ POSTGRES_USER=votre_user_postgres
 POSTGRES_PASSWORD=votre_mot_de_passe_postgres
 ```
 
-Le nom de la base `jobs_db` doit rester tel quel. Toutes les autres valeurs sont libres. Ce fichier ne doit jamais être commité, il est exclu par `.gitignore`.
+Le nom de la base `jobs_db` doit rester tel quel. Ce fichier ne doit jamais être commité, il est exclu par `.gitignore`.
 
 ### 3. Créer l'environnement virtuel Python
 ```bash
@@ -218,25 +218,16 @@ Les services suivants doivent afficher le statut **Up** :
 
 ### 6. Alimenter la base de données
 
-Lancez le pipeline ETL. Il scrape les groupes politiques depuis le site de l'Assemblée nationale, collecte les députés et scrutins via l'API officielle, charge les données brutes dans MinIO et les données transformées dans PostgreSQL :
+Le pipeline collecte les groupes politiques par scraping HTML, les 577 députés actifs et leurs groupes via l'API officielle, charge les données brutes dans MinIO et les données transformées dans PostgreSQL — tout en une seule commande :
 ```bash
 python etl/pipeline.py
 ```
 
-Comptez 2 à 5 minutes selon votre connexion. Le pipeline affiche sa progression en temps réel et se termine par un résumé indiquant le nombre de groupes, députés et scrutins collectés et chargés.
-
-Lancez ensuite le script de mapping. Il lit les mandats officiels dans le ZIP de l'API, identifie le groupe politique actif de chaque député et met à jour PostgreSQL :
-```bash
-python etl/fix_groupes.py
-```
-
-Le script affiche la répartition finale par groupe. Vous devez voir 575 députés mis à jour avec les effectifs suivants : RN 122, EPR 90, LFI-NFP 71, SOC 69, DR 48, ECO 38, DEM 36, HOR 35, LIOT 22, GDR 17, UDR 17, NI 10.
+Comptez 2 à 5 minutes selon votre connexion. Le pipeline affiche sa progression en temps réel et se termine par un résumé complet.
 
 ### 7. Configurer Grafana
 
-Ouvrez **http://localhost:3000** et connectez-vous avec `admin / admin`.
-
-Allez dans **Connections > Data sources > PostgreSQL**. Dans le champ **Password**, saisissez la valeur que vous avez définie pour `POSTGRES_PASSWORD` dans votre `.env`. Cliquez **Save & test**, vous devez voir `Database Connection OK`.
+Ouvrez **http://localhost:3000** (admin / admin), allez dans **Connections > Data sources > PostgreSQL** et renseignez le mot de passe défini dans votre `.env` (champ `POSTGRES_PASSWORD`). Cliquez **Save & test**, vous devez voir `Database Connection OK`.
 
 Le dashboard de monitoring est provisionné automatiquement et s'affiche immédiatement.
 
@@ -254,9 +245,7 @@ Ouvrez **http://localhost:5050** (admin@admin.com / admin). Ajoutez un nouveau s
 
 ### 9. Activer le DAG Airflow
 
-Ouvrez **http://localhost:8080** et connectez-vous avec `admin / admin`.
-
-Localisez le DAG `pipeline_assemblee_nationale` et activez-le via le toggle, il passe de **Paused** à **Active**. Le pipeline s'exécute ensuite automatiquement chaque jour à 6h00. Pour un déclenchement manuel immédiat, utilisez le bouton **Trigger DAG**.
+Ouvrez **http://localhost:8080** (admin / admin), localisez le DAG `pipeline_assemblee_nationale` et activez-le via le toggle. Le pipeline s'exécute ensuite automatiquement chaque jour à 6h00. Pour un déclenchement manuel, utilisez le bouton **Trigger DAG**.
 
 ### 10. Lancer le dashboard Streamlit
 ```bash
@@ -267,7 +256,77 @@ Ouvrez **http://localhost:8501**.
 
 ---
 
-## Interfaces disponibles
+## Déploiement AWS EC2
+
+Le projet est conçu pour tourner sur une instance EC2 Ubuntu. MinIO étant compatible avec l'API AWS S3, la migration vers S3 et RDS ne nécessite que des changements de variables d'environnement.
+
+### Prérequis AWS
+
+- Compte AWS actif
+- Instance EC2 : Ubuntu 22.04 LTS, type `m7i-flex.large` minimum, 30 Go de stockage
+- Région : `eu-west-3` (Paris)
+- Groupe de sécurité avec les ports entrants ouverts : 22, 3000, 5050, 8080, 8501, 9000, 9001, 9090
+
+### 1. Connexion à l'instance
+```bash
+ssh -i votre-cle.pem ubuntu@VOTRE_IP_PUBLIQUE
+```
+
+### 2. Installation de Docker
+```bash
+sudo apt update && sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker ubuntu
+newgrp docker
+```
+
+### 3. Cloner et configurer
+```bash
+git clone https://github.com/SNZAMBA65/data-pipeline-emploi.git
+cd data-pipeline-emploi
+cp .env.example .env
+nano .env
+```
+
+Renseignez vos identifiants, sauvegardez avec `Ctrl+O` puis `Entrée`, quittez avec `Ctrl+X`.
+
+### 4. Démarrer l'infrastructure
+```bash
+mkdir -p logs/airflow
+sudo chmod -R 777 logs/airflow
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+docker compose up -d
+```
+
+Attendez 30 secondes que tous les services démarrent.
+
+### 5. Alimenter la base de données
+```bash
+python etl/pipeline.py
+```
+
+### 6. Lancer le dashboard
+```bash
+streamlit run dashboards/streamlit/app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+Le dashboard est accessible depuis n'importe quel navigateur à l'adresse `http://VOTRE_IP_PUBLIQUE:8501`.
+
+### Interfaces disponibles sur EC2
+
+| Service | URL |
+|---|---|
+| Streamlit | http://VOTRE_IP_PUBLIQUE:8501 |
+| Grafana | http://VOTRE_IP_PUBLIQUE:3000 |
+| Airflow | http://VOTRE_IP_PUBLIQUE:8080 |
+| MinIO | http://VOTRE_IP_PUBLIQUE:9001 |
+| pgAdmin | http://VOTRE_IP_PUBLIQUE:5050 |
+| Prometheus | http://VOTRE_IP_PUBLIQUE:9090 |
+
+---
+
+## Interfaces disponibles en local
 
 | Service | URL | Identifiants |
 |---|---|---|
@@ -314,8 +373,8 @@ jupyter notebook
 ```
 
 - `01_exploration.ipynb` : exploration générale, statistiques descriptives
-- `02_analyse_scrutins.ipynb` : analyse des 5 828 scrutins publics
-- `03_analyse_deputes.ipynb` : analyse démographique des 575 députés
+- `02_analyse_scrutins.ipynb` : analyse des 5 847 scrutins publics
+- `03_analyse_deputes.ipynb` : analyse démographique des 577 députés
 
 Les visualisations sont exportées dans `data/processed/`.
 
@@ -339,38 +398,37 @@ Le pipeline GitHub Actions se déclenche à chaque push ou pull request sur `mai
 
 ## Monitoring
 
-**Prometheus** - http://localhost:9090  
-Collecte les métriques toutes les 15 secondes depuis trois cibles : Prometheus lui-même, PostgreSQL via le postgres-exporter, et MinIO. Vérifiez que les trois targets sont **UP** dans **Status > Targets**.
+**Prometheus** : collecte les métriques toutes les 15 secondes depuis trois cibles : Prometheus lui-même, PostgreSQL via le postgres-exporter, et MinIO. Vérifiez que les trois targets sont **UP** dans **Status > Targets**.
 
-**Grafana** - http://localhost:3000  
-Dashboard provisionné automatiquement avec les métriques métier du pipeline : KPIs, scrutins par mois, taux de participation, évolution du taux d'adoption et bilan annuel.
+**Grafana** : dashboard provisionné automatiquement avec les métriques métier du pipeline : KPIs, scrutins par mois, taux de participation, évolution du taux d'adoption et bilan annuel.
 
 ---
 
-## Redémarrage
-
-Après un redémarrage machine, dans l'ordre :
+## Redémarrage local
 ```bash
-# 1. Démarrer Docker Desktop et attendre que l'icône soit stable
-
-# 2. Lancer les conteneurs
 cd data-pipeline-emploi
 source venv/Scripts/activate        # Windows
 docker compose up -d
 
-# 3. Attendre 30 secondes que tous les services soient prêts
+# Ressaisir le mot de passe PostgreSQL dans Grafana
+# http://localhost:3000
+# Connections > Data sources > PostgreSQL > Password > Save & test
 
-# 4. Ressaisir le mot de passe PostgreSQL dans Grafana
-#    http://localhost:3000
-#    Connections > Data sources > PostgreSQL
-#    Champ Password > votre POSTGRES_PASSWORD > Save & test
-
-# 5. Vérifier qu'Airflow est toujours actif
-#    http://localhost:8080
-#    Le DAG pipeline_assemblee_nationale doit être en statut Active
-
-# 6. Lancer le dashboard
 streamlit run dashboards/streamlit/app.py
+```
+
+## Redémarrage EC2
+```bash
+ssh -i votre-cle.pem ubuntu@VOTRE_IP_PUBLIQUE
+cd data-pipeline-emploi
+source venv/bin/activate
+docker compose up -d
+
+# Ressaisir le mot de passe PostgreSQL dans Grafana
+# http://VOTRE_IP_PUBLIQUE:3000
+# Connections > Data sources > PostgreSQL > Password > Save & test
+
+streamlit run dashboards/streamlit/app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
 ---
