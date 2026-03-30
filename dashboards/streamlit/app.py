@@ -38,8 +38,6 @@ html, body, [class*="css"] {
     -webkit-font-smoothing: antialiased;
 }
 
-.stApp { background-color: #f0f2f8; }
-
 .block-container {
     padding: 2rem 2.75rem !important;
     max-width: 1380px !important;
@@ -78,85 +76,20 @@ html, body, [class*="css"] {
     color: #ffffff !important;
 }
 [data-testid="stSidebar"] .stSelectbox svg,
-[data-testid="stSidebar"] .stMultiSelect svg {
-    fill: #ffffff !important;
-}
+[data-testid="stSidebar"] .stMultiSelect svg { fill: #ffffff !important; }
 [data-testid="stSidebar"] ul[role="listbox"],
 [data-testid="stSidebar"] div[role="listbox"] {
     background-color: #0d2b8e !important;
     border: 1px solid rgba(255,255,255,0.15) !important;
 }
 [data-testid="stSidebar"] ul[role="listbox"] li,
-[data-testid="stSidebar"] div[role="listbox"] div {
-    color: #ffffff !important;
-}
+[data-testid="stSidebar"] div[role="listbox"] div { color: #ffffff !important; }
 
 [data-testid="metric-container"] {
-    background: #ffffff;
-    border: 1px solid #e4e8f0;
     border-radius: 12px;
     padding: 1.1rem 1.3rem 1rem 1.3rem;
-    box-shadow: 0 1px 3px rgba(0,35,149,0.06),
-                0 4px 12px rgba(0,35,149,0.04);
-}
-[data-testid="metric-container"] label {
-    font-size: 0.68rem !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.09em !important;
-    color: #8896b0 !important;
-}
-[data-testid="metric-container"] [data-testid="stMetricValue"] {
-    font-size: 1.85rem !important;
-    font-weight: 700 !important;
-    color: #0a1628 !important;
-    letter-spacing: -0.025em !important;
-    line-height: 1.1 !important;
-}
-[data-testid="metric-container"] [data-testid="stMetricDelta"] {
-    font-size: 0.75rem !important;
-    color: #64748b !important;
-}
-
-h1 {
-    font-size: 1.7rem !important;
-    font-weight: 700 !important;
-    color: #0a1628 !important;
-    letter-spacing: -0.025em !important;
-    margin: 0 0 0.2rem 0 !important;
-    line-height: 1.2 !important;
-}
-h3 {
-    font-size: 0.95rem !important;
-    font-weight: 600 !important;
-    color: #1e293b !important;
-    letter-spacing: -0.01em !important;
-    margin: 0 0 0.15rem 0 !important;
-}
-
-[data-testid="stCaptionContainer"] p {
-    color: #94a3b8 !important;
-    font-size: 0.76rem !important;
-    margin-bottom: 0.75rem !important;
-}
-
-[data-testid="stAlert"] {
-    border-radius: 10px !important;
-    border: 1px solid #dbeafe !important;
-    background: #f0f7ff !important;
-    padding: 0.9rem 1.1rem !important;
-}
-[data-testid="stAlert"] p {
-    font-size: 0.83rem !important;
-    line-height: 1.65 !important;
-    color: #334155 !important;
-}
-
-[data-testid="stDataFrame"] {
-    border-radius: 10px !important;
-    border: 1px solid #e4e8f0 !important;
-    overflow: hidden !important;
-    box-shadow: 0 1px 3px rgba(0,35,149,0.04) !important;
+    border: 1px solid rgba(128,128,128,0.15);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .page-banner {
@@ -194,11 +127,10 @@ h3 {
 }
 
 .chart-card {
-    background: #ffffff;
     border-radius: 12px;
-    border: 1px solid #e4e8f0;
+    border: 1px solid rgba(128,128,128,0.15);
     padding: 1.25rem 1.5rem 0.75rem 1.5rem;
-    box-shadow: 0 1px 3px rgba(0,35,149,0.05);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     margin-bottom: 1.25rem;
 }
 
@@ -244,9 +176,9 @@ COULEURS_GROUPES = {
 
 def plo(**kw):
     base = dict(
-        paper_bgcolor=BLANC,
-        plot_bgcolor=BLANC,
-        font=dict(family=FONT, size=12, color="#374151"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=FONT, size=12),
         margin=dict(t=20, b=20, l=8, r=16),
         hoverlabel=dict(
             bgcolor="#0a1628",
@@ -261,22 +193,22 @@ def plo(**kw):
 def ax(**kw):
     d = dict(
         showgrid=False,
-        linecolor="#eaecf2",
+        linecolor="rgba(128,128,128,0.2)",
         tickcolor="rgba(0,0,0,0)",
-        tickfont=dict(size=11, color="#64748b"),
-        title_font=dict(size=11, color="#64748b"),
+        tickfont=dict(size=11),
+        title_font=dict(size=11),
     )
     d.update(kw)
     return d
 
 def ay(**kw):
     d = dict(
-        gridcolor="#f4f6fb",
+        gridcolor="rgba(128,128,128,0.12)",
         gridwidth=1,
         linecolor="rgba(0,0,0,0)",
         tickcolor="rgba(0,0,0,0)",
-        tickfont=dict(size=11, color="#64748b"),
-        title_font=dict(size=11, color="#64748b"),
+        tickfont=dict(size=11),
+        title_font=dict(size=11),
     )
     d.update(kw)
     return d
@@ -326,17 +258,14 @@ def nettoyer_serie(serie: pd.Series) -> pd.Series:
 @st.cache_resource
 def get_engine():
     return create_engine(
-        (
-    f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:"
-    f"{os.getenv('POSTGRES_PASSWORD')}@localhost:5432/"
-    f"{os.getenv('POSTGRES_DB')}"
-)
+        f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:"
+        f"{os.getenv('POSTGRES_PASSWORD')}@localhost:5432/"
+        f"{os.getenv('POSTGRES_DB')}"
     )
 
 @st.cache_data
 def charger():
     eng = get_engine()
-    # Uniquement les députés actifs de la 17e législature
     d = pd.read_sql(
         "SELECT * FROM deputes WHERE groupe_sigle IS NOT NULL",
         eng
@@ -370,10 +299,9 @@ def charger():
 
 df_d, df_s, df_g = charger()
 
-# Constantes dynamiques
-AGE_MIN    = int(df_d["age"].dropna().min())
-AGE_MAX    = int(df_d["age"].dropna().max())
-NB_DEPUTES = len(df_d)
+AGE_MIN     = int(df_d["age"].dropna().min())
+AGE_MAX     = int(df_d["age"].dropna().max())
+NB_DEPUTES  = len(df_d)
 NB_SCRUTINS = len(df_s)
 
 
@@ -401,22 +329,15 @@ with st.sidebar:
 
     if page == "Députés":
         genre_opt = st.selectbox("Genre", ["Tous", "Homme", "Femme"])
-
-        # Bornes d'âge dynamiques
         age_range = st.slider(
             "Âge",
             min_value=AGE_MIN,
             max_value=AGE_MAX,
             value=(AGE_MIN, AGE_MAX)
         )
-
-        # Filtre par groupe politique
         groupes_dispo = ["Tous"] + df_g["sigle"].tolist()
         groupe_opt = st.selectbox("Groupe politique", groupes_dispo)
-
         st.markdown("---")
-
-        # Slider adapté — pas de valeur redondante avec le total
         nb_deputes = st.select_slider(
             "Députés affichés",
             options=[25, 50, 100, 200, 300, "Tous"],
@@ -479,12 +400,9 @@ if page == "Vue d'ensemble":
     </div>
     """, unsafe_allow_html=True)
 
-    # ── KPIs ──────────────────────────────────────────────────────
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    k1.metric("Députés actifs", f"{NB_DEPUTES}",
-              "17e législature")
-    k2.metric("Scrutins publics", f"{NB_SCRUTINS:,}",
-              "juil. 2024 — mars 2026")
+    k1.metric("Députés actifs", f"{NB_DEPUTES}", "17e législature")
+    k2.metric("Scrutins publics", f"{NB_SCRUTINS:,}", "juil. 2024 — mars 2026")
     k3.metric("Taux d'adoption", f"{adopte_pct:.1f} %",
               f"{df_s['adopte'].sum():,} adoptés")
     k4.metric("Femmes à l'AN", f"{femmes_pct:.1f} %",
@@ -496,7 +414,6 @@ if page == "Vue d'ensemble":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Activité mensuelle ────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Activité législative mensuelle")
     st.caption(
@@ -536,7 +453,7 @@ if page == "Vue d'ensemble":
     ))
     fig.update_xaxes(**ax())
     fig.update_yaxes(title_text="Nombre de scrutins",
-                     gridcolor="#f4f6fb", secondary_y=False)
+                     gridcolor="rgba(128,128,128,0.12)", secondary_y=False)
     fig.update_yaxes(title_text="Participation (%)",
                      showgrid=False, secondary_y=True)
     chart(fig)
@@ -565,7 +482,7 @@ if page == "Vue d'ensemble":
                 marker_line=dict(color="rgba(0,0,0,0)"),
                 text=f"<b>{row['pct']} %</b>",
                 textposition="outside",
-                textfont=dict(size=15, color="#0a1628", family=FONT),
+                textfont=dict(size=15, family=FONT),
                 hovertemplate=(
                     f"<b>{row['sort'].capitalize()}</b>"
                     f"<br>{row['nb']:,} scrutins"
@@ -573,7 +490,7 @@ if page == "Vue d'ensemble":
                 ),
             ))
         fig.update_layout(**plo(height=300, showlegend=False, bargap=0.5))
-        fig.update_xaxes(**ax(tickfont=dict(size=12, color="#374151")))
+        fig.update_xaxes(**ax(tickfont=dict(size=12)))
         fig.update_yaxes(**ay())
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -612,11 +529,10 @@ if page == "Vue d'ensemble":
             annotations=[dict(
                 text=(
                     f"<b>{femmes_pct:.0f} %</b>"
-                    "<br><span style='font-size:11px;"
-                    "color:#64748b'>femmes</span>"
+                    "<br><span style='font-size:11px;'>femmes</span>"
                 ),
                 x=0.5, y=0.5, font_size=18, showarrow=False,
-                font=dict(color="#0a1628", family=FONT)
+                font=dict(family=FONT)
             )]
         ))
         chart(fig)
@@ -644,14 +560,12 @@ if page == "Vue d'ensemble":
         fig.add_vline(x=moy, line_dash="dot",
                       line_color=ROUGE, line_width=2,
                       annotation_text=f"Moy. {moy:.1f} %",
-                      annotation_font=dict(size=11, color=ROUGE,
-                                           family=FONT),
+                      annotation_font=dict(size=11, color=ROUGE, family=FONT),
                       annotation_position="top right")
         fig.add_vline(x=med, line_dash="dash",
                       line_color=GRIS, line_width=1.5,
                       annotation_text=f"Méd. {med:.1f} %",
-                      annotation_font=dict(size=10, color=GRIS,
-                                           family=FONT),
+                      annotation_font=dict(size=10, color=GRIS, family=FONT),
                       annotation_position="top left")
         fig.update_layout(**plo(height=300))
         fig.update_xaxes(**ax(title_text="Taux de participation (%)"))
@@ -659,7 +573,6 @@ if page == "Vue d'ensemble":
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Répartition par groupe ────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Composition par groupe politique")
@@ -694,7 +607,7 @@ if page == "Vue d'ensemble":
         text=[f"{n}<br>{p} %" for n, p in
               zip(groupes_count["nb"], groupes_count["pct"])],
         textposition="outside",
-        textfont=dict(size=10.5, color="#374151", family=FONT),
+        textfont=dict(size=10.5, family=FONT),
         customdata=groupes_count[["nom", "pct"]].values,
         hovertemplate=(
             "<b>%{x}</b> — %{customdata[0]}<br>"
@@ -708,8 +621,6 @@ if page == "Vue d'ensemble":
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Insights ──────────────────────────────────────────────────
     st.markdown("### Points d'analyse")
     st.caption(
         "Lecture synthétique des principales tendances "
@@ -827,7 +738,7 @@ elif page == "Députés":
             ),
             text=top_p["nb"],
             textposition="outside",
-            textfont=dict(size=11, color=GRIS, family=FONT),
+            textfont=dict(size=11, family=FONT),
             hovertemplate=(
                 "<b>%{y}</b><br>%{x} député·e·s<extra></extra>"
             ),
@@ -837,7 +748,7 @@ elif page == "Députés":
         fig.update_yaxes(
             categoryorder="total ascending",
             gridcolor="rgba(0,0,0,0)",
-            tickfont=dict(size=10.5, color="#374151")
+            tickfont=dict(size=10.5)
         )
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -879,7 +790,6 @@ elif page == "Députés":
         chart(fig)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Répartition par groupe ────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Répartition par groupe politique")
     st.caption("Nombre de député·e·s par groupe · sélection active")
@@ -903,7 +813,7 @@ elif page == "Députés":
             marker_line=dict(color="rgba(0,0,0,0)"),
             text=gp_sel["nb"],
             textposition="outside",
-            textfont=dict(size=11, color="#374151", family=FONT),
+            textfont=dict(size=11, family=FONT),
             hovertemplate=(
                 "<b>%{x}</b><br>%{y} député·e·s<extra></extra>"
             ),
@@ -916,7 +826,6 @@ elif page == "Députés":
         st.caption("Aucun député dans la sélection.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Villes de naissance ───────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     st.markdown("### Villes de naissance les plus représentées")
     st.caption("Top 20 communes · nombre de député·e·s nés sur place")
@@ -941,7 +850,7 @@ elif page == "Députés":
             ),
             text=top_v["nb"],
             textposition="outside",
-            textfont=dict(size=10.5, color=GRIS, family=FONT),
+            textfont=dict(size=10.5, family=FONT),
             hovertemplate=(
                 "<b>%{x}</b><br>%{y} député·e·s<extra></extra>"
             ),
@@ -952,7 +861,6 @@ elif page == "Députés":
         chart(fig)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Répertoire ────────────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
     col_titre, col_info = st.columns([3, 2])
@@ -967,9 +875,9 @@ elif page == "Députés":
         affiches = min(limite, total) if limite else total
         st.markdown(
             f"<div style='text-align:right;padding-top:0.6rem;"
-            f"font-size:0.78rem;color:#94a3b8;'>"
-            f"Affichage de <b style='color:#0a1628'>{affiches:,}</b>"
-            f" sur <b style='color:#0a1628'>{total:,}</b> "
+            f"font-size:0.78rem;'>"
+            f"Affichage de <b>{affiches:,}</b>"
+            f" sur <b>{total:,}</b> "
             f"député{'s' if total > 1 else ''}"
             f"</div>",
             unsafe_allow_html=True
@@ -1098,7 +1006,7 @@ elif page == "Scrutins":
     ))
     fig.update_xaxes(**ax())
     fig.update_yaxes(title_text="Nombre de scrutins",
-                     gridcolor="#f4f6fb", secondary_y=False)
+                     gridcolor="rgba(128,128,128,0.12)", secondary_y=False)
     fig.update_yaxes(title_text="Participation (%)",
                      showgrid=False, secondary_y=True)
     chart(fig)
@@ -1166,7 +1074,7 @@ elif page == "Scrutins":
             ),
             text=tc["nb"],
             textposition="outside",
-            textfont=dict(size=11, color=GRIS, family=FONT),
+            textfont=dict(size=11, family=FONT),
             hovertemplate=(
                 "<b>%{y}</b><br>%{x} scrutins<extra></extra>"
             ),
