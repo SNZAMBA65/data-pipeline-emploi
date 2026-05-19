@@ -266,6 +266,11 @@ def get_engine():
 @st.cache_data
 def charger():
     eng = get_engine()
+
+    # Données brutes — tous les enregistrements sans filtre
+    d_brut = pd.read_sql("SELECT * FROM deputes", eng)
+
+    # Données propres — uniquement les 577 actifs avec groupe
     d = pd.read_sql(
         "SELECT * FROM deputes WHERE groupe_sigle IS NOT NULL",
         eng
@@ -295,15 +300,33 @@ def charger():
     d["date_naissance"] = pd.to_datetime(d["date_naissance"], errors="coerce")
     d["genre"]          = d["civilite"].map({"M.": "Homme", "Mme": "Femme"})
     s["date"]           = pd.to_datetime(s["date"])
-    return d, s, g
 
-df_d, df_s, df_g = charger()
+    return d, d_brut, s, g
+
+
+@st.cache_data
+def charger_pipeline_stats():
+    """Charge les statistiques de la dernière exécution du pipeline."""
+    eng = get_engine()
+    try:
+        df = pd.read_sql(
+            "SELECT * FROM pipeline_stats ORDER BY run_date DESC LIMIT 1",
+            eng
+        )
+        if df.empty:
+            return None
+        return df.iloc[0]
+    except Exception:
+        return None
+
+
+df_d, df_d_brut, df_s, df_g = charger()
+pipeline_stats = charger_pipeline_stats()
 
 AGE_MIN     = int(df_d["age"].dropna().min())
 AGE_MAX     = int(df_d["age"].dropna().max())
 NB_DEPUTES  = len(df_d)
 NB_SCRUTINS = len(df_s)
-
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 
@@ -320,9 +343,9 @@ with st.sidebar:
     st.markdown("---")
 
     page = st.radio(
-        "Section",
-        ["Vue d'ensemble", "Députés", "Scrutins"],
-        label_visibility="collapsed"
+    "Section",
+    ["Vue d'ensemble", "Députés", "Scrutins", "Pipeline"],
+    label_visibility="collapsed"
     )
 
     st.markdown("---")
@@ -1129,3 +1152,580 @@ elif page == "Scrutins":
         }
     )
     st.markdown('</div>', unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# PIPELINE
+# ═══════════════════════════════════════════════════════════════════
+
+elif page == "Pipeline":
+
+    st.markdown("""
+    <div class="page-banner">
+        <div>
+            <div class="banner-title">Pipeline ETL — Data Lake → Data Warehouse</div>
+            <div class="banner-desc">
+                Collecte · Transformation · Chargement ·
+                Visualisation de la chaîne complète de traitement
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Statistiques dynamiques — dernière exécution du pipeline ─
+    if pipeline_stats is None:
+        st.error(
+            "⚠️ Aucune statistique de pipeline disponible. "
+            "Lancez le pipeline ETL pour alimenter les données : "
+            "`python etl/pipeline.py`"
+        )
+        st.stop()
+
+    nb_brut    = int(pipeline_stats["acteurs_bruts"])
+    nb_actifs  = int(pipeline_stats["acteurs_retenus"])
+    nb_ignores = int(pipeline_stats["acteurs_ignores"])
+
+    # ── KPIs du pipeline ─────────────────────────────────────────
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Enregistrements bruts",
+              f"{nb_brut:,}",
+              "avant filtre — toutes législatures")
+    k2.metric("Députés actifs retenus",
+              f"{nb_actifs:,}",
+              f"−{nb_ignores:,} ignorés")
+    k3.metric("Scrutins traités",
+              f"{len(df_s):,}",
+              "chargés en DWH")
+    k4.metric("Groupes politiques",
+              f"{len(df_g)}",
+              "mappés")
+    k5.metric("Taux de complétion",
+              f"{df_d.notna().mean().mean()*100:.1f} %",
+              "données propres")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Architecture du pipeline ─────────────────────────────────
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.markdown("### Architecture du pipeline ETL")
+    st.caption(
+        "Flux de données de la collecte à la visualisation"
+    )
+
+    st.markdown("""
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:separate;
+                  border-spacing:0;font-size:0.85rem;">
+      <thead>
+        <tr>
+          <th style="background:#002395;color:white;padding:0.75rem 1rem;
+                     border-radius:8px 0 0 0;text-align:center;">
+            Extract
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:0.75rem 1rem;
+                     text-align:center;">→</th>
+          <th style="background:#4f7ed4;color:white;padding:0.75rem 1rem;
+                     text-align:center;">
+            Data Lake (MinIO)
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:0.75rem 1rem;
+                     text-align:center;">→</th>
+          <th style="background:#2E7D32;color:white;padding:0.75rem 1rem;
+                     text-align:center;">
+            Transform
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:0.75rem 1rem;
+                     text-align:center;">→</th>
+          <th style="background:#DAA520;color:white;padding:0.75rem 1rem;
+                     text-align:center;">
+            Data Warehouse (PostgreSQL)
+          </th>
+          <th style="background:#1a1a2e;color:white;padding:0.75rem 1rem;
+                     text-align:center;">→</th>
+          <th style="background:#C1002A;color:white;padding:0.75rem 1rem;
+                     border-radius:0 8px 0 0;text-align:center;">
+            Visualisation
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:0.75rem 1rem;border:1px solid rgba(128,128,128,0.15);
+                     vertical-align:top;">
+            API officielle AN<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              ZIP AMO30 — tous acteurs<br>depuis la XIe législature<br>
+              ZIP JSON scrutins
+            </span><br><br>
+            Scraping HTML<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              Groupes politiques
+            </span>
+          </td>
+          <td style="padding:0.75rem;text-align:center;
+                     border:1px solid rgba(128,128,128,0.15);"></td>
+          <td style="padding:0.75rem 1rem;border:1px solid rgba(128,128,128,0.15);
+                     vertical-align:top;">
+            Données brutes JSON<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              deputes/raw_YYYY-MM-DD.json<br>
+              scrutins/raw_YYYY-MM-DD.json<br>
+              groupes/raw_YYYY-MM-DD.json
+            </span><br><br>
+            <span style="color:#C1002A;font-size:0.78rem;">
+              ⚠ {nb_brut:,} acteurs bruts<br>
+              ⚠ Valeurs XML brutes<br>
+              ⚠ Sans calcul d'âge<br>
+              ⚠ Sans mapping groupes<br>
+              ⚠ Toutes législatures mélangées
+            </span>
+          </td>
+          <td style="padding:0.75rem;text-align:center;
+                     border:1px solid rgba(128,128,128,0.15);"></td>
+          <td style="padding:0.75rem 1rem;border:1px solid rgba(128,128,128,0.15);
+                     vertical-align:top;">
+            DataCleaner<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              etl/transform/cleaner.py
+            </span><br><br>
+            <span style="color:#2E7D32;font-size:0.78rem;">
+              ✓ Filtre 17e législature<br>
+              &nbsp;&nbsp;{nb_ignores:,} ignorés<br>
+              ✓ Nettoyage @xsi:nil<br>
+              ✓ Calcul de l'âge<br>
+              ✓ Déduction du genre<br>
+              ✓ Mapping groupe→sigle
+            </span>
+          </td>
+          <td style="padding:0.75rem;text-align:center;
+                     border:1px solid rgba(128,128,128,0.15);"></td>
+          <td style="padding:0.75rem 1rem;border:1px solid rgba(128,128,128,0.15);
+                     vertical-align:top;">
+            Tables normalisées<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              deputes · scrutins<br>groupes_politiques<br>pipeline_stats
+            </span><br><br>
+            <span style="color:#2E7D32;font-size:0.78rem;">
+              ✓ {nb_actifs:,} députés actifs<br>
+              ✓ {nb_s:,} scrutins<br>
+              ✓ 12 groupes mappés<br>
+              ✓ Données normalisées
+            </span>
+          </td>
+          <td style="padding:0.75rem;text-align:center;
+                     border:1px solid rgba(128,128,128,0.15);"></td>
+          <td style="padding:0.75rem 1rem;border:1px solid rgba(128,128,128,0.15);
+                     vertical-align:top;">
+            Streamlit Dashboard<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              Ce dashboard
+            </span><br><br>
+            Notebooks Jupyter<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              Analyse en 4 actes
+            </span><br><br>
+            Grafana<br>
+            <span style="opacity:0.6;font-size:0.78rem;">
+              Monitoring infra
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    """.format(
+        nb_brut=nb_brut,
+        nb_ignores=nb_ignores,
+        nb_actifs=nb_actifs,
+        nb_s=len(df_s)
+    ), unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Avant / Après nettoyage ──────────────────────────────────
+    # ── Du brut au propre ────────────────────────────────────────
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.markdown("### Du brut au propre — pipeline de nettoyage")
+    st.caption(
+        f"De {nb_brut:,} acteurs bruts (AMO30) à {nb_actifs:,} députés "
+        f"actifs enrichis · {nb_ignores:,} ignorés"
+    )
+
+    col_funnel, col_delta = st.columns([1, 1])
+
+    with col_funnel:
+        fig = go.Figure(go.Funnel(
+            y=[
+                f"ZIP AMO30 téléchargé<br>{nb_brut:,} acteurs bruts",
+                f"Filtre 17e législature<br>{nb_actifs:,} mandats GP actifs",
+                f"Nettoyage XML + dates<br>{nb_actifs:,} enregistrements propres",
+                f"Enrichissement<br>{nb_actifs:,} députés avec âge, genre, groupe",
+            ],
+            x=[nb_brut, nb_actifs, nb_actifs, nb_actifs],
+            textinfo="value+percent initial",
+            textfont=dict(size=11, family=FONT),
+            marker=dict(
+                color=["#C1002A", "#DAA520", "#4f7ed4", "#2E7D32"],
+                line=dict(width=2, color="white")
+            ),
+            connector=dict(
+                line=dict(color="rgba(128,128,128,0.3)", width=1)
+            ),
+        ))
+        fig.update_layout(**plo(
+            height=380,
+            margin=dict(t=20, b=20, l=10, r=10)
+        ))
+        chart(fig)
+
+    with col_delta:
+        champs = [
+            ("Groupe politique",   0,   100, "Absent dans le ZIP · construit par mapping organes"),
+            ("Genre",              0,   100, "Absent dans l'API · déduit de la civilité"),
+            ("Âge",                0,   100, "Absent dans l'API · calculé depuis date naissance"),
+            ("Profession",        62,    78, "Valeurs @xsi:nil nettoyées"),
+            ("Lieu de naissance", 95,    95, "Déjà renseigné dans l'API"),
+            ("Date naissance",   100,   100, "Déjà renseigné dans l'API"),
+            ("Nom / Prénom",     100,   100, "Déjà renseigné dans l'API"),
+        ]
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        for champ, avant_pct, apres_pct, note in champs:
+            delta        = apres_pct - avant_pct
+            couleur_delta = "#2E7D32" if delta > 0 else "#757575"
+            fleche       = "↑" if delta > 0 else "→"
+            st.markdown(f"""
+            <div style="margin-bottom:0.85rem;padding:0.75rem 1rem;
+                        border-radius:8px;
+                        border:1px solid rgba(128,128,128,0.12);">
+                <div style="display:flex;justify-content:space-between;
+                            align-items:center;margin-bottom:0.3rem;">
+                    <span style="font-weight:600;font-size:0.88rem;">
+                        {champ}
+                    </span>
+                    <span style="font-size:0.85rem;font-weight:700;
+                                 color:{couleur_delta};">
+                        {fleche} {avant_pct}% → {apres_pct}%
+                    </span>
+                </div>
+                <div style="background:rgba(128,128,128,0.1);
+                            border-radius:4px;height:6px;
+                            margin-bottom:0.3rem;">
+                    <div style="background:#C1002A;border-radius:4px;
+                                height:6px;width:{avant_pct}%;
+                                display:inline-block;"></div>
+                </div>
+                <div style="background:rgba(128,128,128,0.1);
+                            border-radius:4px;height:6px;
+                            margin-bottom:0.4rem;">
+                    <div style="background:#2E7D32;border-radius:4px;
+                                height:6px;width:{apres_pct}%;
+                                display:inline-block;"></div>
+                </div>
+                <div style="font-size:0.75rem;opacity:0.6;">{note}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Fonction est_propre (utilisée plus bas) ──────────────────
+    def est_propre(val):
+        if val is None:
+            return False
+        if isinstance(val, float) and pd.isna(val):
+            return False
+        if isinstance(val, dict):
+            return False
+        if isinstance(val, str) and (
+            "@xsi:nil" in val or "@xmlns:xsi" in val
+            or val.strip() == ""
+        ):
+            return False
+        return True
+
+    # ── Étapes de nettoyage ──────────────────────────────────────
+    col_l, col_r = st.columns(2)
+
+    with col_l:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown("### Étapes de transformation")
+        st.caption("Ce que le pipeline fait concrètement sur les données")
+
+        etapes = [
+            ("1", "Filtre 17e législature",
+             f"Sur {nb_brut:,} acteurs bruts (AMO30 — toutes législatures "
+             f"depuis 1997), seuls les {nb_actifs:,} acteurs avec un mandat "
+             f"de groupe politique actif en 17e législature sont retenus "
+             f"— {nb_ignores:,} ignorés.",
+             "#002395"),
+            ("2", "Nettoyage valeurs XML",
+             "Les valeurs @xsi:nil retournées par l'API sont "
+             "converties en NULL exploitable.",
+             "#4f7ed4"),
+            ("3", "Conversion des dates",
+             "Les dates de naissance sont converties au format "
+             "datetime, les formats invalides passent en NaT.",
+             "#2E7D32"),
+            ("4", "Calcul de l'âge",
+             "L'âge est calculé dynamiquement depuis la date "
+             "de naissance et validé contre la colonne âge de l'API.",
+             "#DAA520"),
+            ("5", "Déduction du genre",
+             "Le genre est déduit de la civilité (M. → Homme, "
+             "Mme → Femme) — non fourni directement par l'API.",
+             "#FF8F00"),
+            ("6", "Mapping groupe politique",
+             "Le sigle du groupe est résolu depuis les organes "
+             "actifs du mandat de chaque député.",
+             "#C1002A"),
+        ]
+
+        for num, titre, desc, color in etapes:
+            st.markdown(f"""
+            <div style="display:flex;gap:1rem;margin-bottom:1rem;
+                        align-items:flex-start;">
+                <div style="min-width:2rem;height:2rem;
+                            background:{color};border-radius:50%;
+                            display:flex;align-items:center;
+                            justify-content:center;color:white;
+                            font-weight:700;font-size:0.85rem;">
+                    {num}
+                </div>
+                <div>
+                    <div style="font-weight:600;font-size:0.9rem;
+                                margin-bottom:0.2rem;">{titre}</div>
+                    <div style="font-size:0.8rem;opacity:0.7;
+                                line-height:1.5;">{desc}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_r:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown("### Complétude des champs après nettoyage")
+        st.caption("Proportion de valeurs renseignées par colonne")
+
+        completude_data = []
+        for col in df_d.columns:
+            if col in ["id", "collecte_le"]:
+                continue
+            propre = df_d[col].apply(est_propre).sum()
+            pct    = round(propre / len(df_d) * 100, 1)
+            completude_data.append({
+                "colonne": col,
+                "pct":     pct,
+                "couleur": "#2E7D32" if pct >= 95
+                           else "#DAA520" if pct >= 70
+                           else "#C1002A"
+            })
+
+        df_comp = pd.DataFrame(completude_data).sort_values(
+            "pct", ascending=True
+        )
+
+        fig = go.Figure(go.Bar(
+            x=df_comp["pct"],
+            y=df_comp["colonne"],
+            orientation="h",
+            marker_color=df_comp["couleur"].tolist(),
+            marker_opacity=0.85,
+            marker_line=dict(color="rgba(0,0,0,0)"),
+            text=[f"{v} %" for v in df_comp["pct"]],
+            textposition="outside",
+            textfont=dict(size=10, family=FONT),
+            hovertemplate=(
+                "<b>%{y}</b><br>%{x} % de complétion<extra></extra>"
+            ),
+        ))
+        fig.update_layout(**plo(height=420))
+        fig.update_xaxes(**ax(range=[0, 115],
+                              title_text="% de complétion"))
+        fig.update_yaxes(tickfont=dict(size=10),
+                         gridcolor="rgba(0,0,0,0)")
+        chart(fig)
+
+        st.markdown("""
+        <div style="font-size:0.78rem;margin-top:0.5rem;
+                    display:flex;gap:1rem;">
+            <span style="color:#2E7D32;">■ ≥ 95 % — complet</span>
+            <span style="color:#DAA520;">■ 70–94 % — partiel</span>
+            <span style="color:#C1002A;">■ < 70 % — incomplet</span>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Du brut au propre ────────────────────────────────────────
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+    st.markdown("### Du brut au propre — ce que le pipeline transforme")
+    st.caption(
+        f"3,114 acteurs bruts téléchargés · "
+        f"577 députés actifs enrichis · "
+        f"2,537 ignorés (autres législatures)"
+    )
+
+    col_funnel, col_delta = st.columns([1, 1])
+
+    with col_funnel:
+        st.markdown("""
+        <div style="margin-top:1rem;">
+        """, unsafe_allow_html=True)
+
+        etapes_funnel = [
+            (nb_brut,    "#C1002A", "ZIP AMO30",
+             f"{nb_brut:,} acteurs bruts téléchargés"),
+            (nb_ignores, "#e8a0a0", "Ignorés",
+             f"{nb_ignores:,} acteurs d'autres législatures"),
+            (nb_actifs,  "#DAA520", "Filtre 17e",
+             f"{nb_actifs:,} avec mandat GP actif"),
+            (nb_actifs,  "#4f7ed4", "Nettoyage",
+             f"{nb_actifs:,} après nettoyage XML"),
+            (nb_actifs,  "#2E7D32", "Enrichissement",
+             f"{nb_actifs:,} avec âge, genre, groupe"),
+        ]
+
+        for valeur, couleur, etape, desc in etapes_funnel:
+            largeur = max(int(valeur / nb_brut * 100), 8)
+            st.markdown(f"""
+            <div style="margin-bottom:0.6rem;">
+                <div style="font-size:0.78rem;font-weight:600;
+                            margin-bottom:0.2rem;color:{couleur};">
+                    {etape}
+                </div>
+                <div style="background:rgba(128,128,128,0.08);
+                            border-radius:6px;height:32px;
+                            position:relative;overflow:hidden;">
+                    <div style="background:{couleur};opacity:0.85;
+                                border-radius:6px;height:32px;
+                                width:{largeur}%;
+                                display:flex;align-items:center;
+                                padding-left:0.75rem;">
+                        <span style="color:white;font-weight:700;
+                                     font-size:0.82rem;white-space:nowrap;">
+                            {valeur:,}
+                        </span>
+                    </div>
+                </div>
+                <div style="font-size:0.72rem;opacity:0.6;
+                            margin-top:0.15rem;">{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_delta:
+        champs = [
+            ("Groupe politique",
+             0, 100,
+             "#002395",
+             "Absent dans le ZIP. Construit par croisement des organes actifs."),
+            ("Genre",
+             0, 100,
+             "#4f7ed4",
+             "Non fourni par l'API. Déduit de la civilité (M. / Mme)."),
+            ("Age",
+             0, 100,
+             "#DAA520",
+             "Non fourni par l'API. Calculé depuis la date de naissance."),
+            ("Profession",
+             62, 78,
+             "#FF8F00",
+             "62% avant nettoyage. Valeurs XML (@xsi:nil) converties en NULL."),
+            ("Lieu de naissance",
+             95, 95,
+             "#2E7D32",
+             "Deja bien renseigné dans l'API. Aucune perte."),
+            ("Nom et prénom",
+             100, 100,
+             "#2E7D32",
+             "Complet dans la source. Aucun traitement nécessaire."),
+        ]
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        for champ, avant_pct, apres_pct, couleur, note in champs:
+            delta = apres_pct - avant_pct
+            if delta > 0:
+                label_delta = f"+{delta} points — enrichissement"
+                couleur_delta = "#2E7D32"
+            elif delta == 0 and avant_pct == 100:
+                label_delta = "Complet"
+                couleur_delta = "#2E7D32"
+            elif delta == 0:
+                label_delta = f"{avant_pct}% — stable"
+                couleur_delta = "#757575"
+            else:
+                label_delta = f"{delta} points"
+                couleur_delta = "#C1002A"
+
+            st.markdown(f"""
+            <div style="margin-bottom:1rem;padding:0.85rem 1rem;
+                        border-radius:8px;
+                        border-left:3px solid {couleur};
+                        border-top:1px solid rgba(128,128,128,0.1);
+                        border-right:1px solid rgba(128,128,128,0.1);
+                        border-bottom:1px solid rgba(128,128,128,0.1);">
+                <div style="display:flex;justify-content:space-between;
+                            align-items:center;margin-bottom:0.5rem;">
+                    <span style="font-weight:600;font-size:0.88rem;">
+                        {champ}
+                    </span>
+                    <span style="font-size:0.78rem;font-weight:600;
+                                 color:{couleur_delta};background:rgba(0,0,0,0.04);
+                                 padding:0.1rem 0.5rem;border-radius:4px;">
+                        {label_delta}
+                    </span>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;
+                            margin-bottom:0.35rem;">
+                    <span style="font-size:0.7rem;opacity:0.5;
+                                 width:3rem;">Avant</span>
+                    <div style="flex:1;background:rgba(128,128,128,0.1);
+                                border-radius:3px;height:5px;">
+                        <div style="background:#C1002A;border-radius:3px;
+                                    height:5px;width:{avant_pct}%;
+                                    opacity:0.7;"></div>
+                    </div>
+                    <span style="font-size:0.7rem;opacity:0.5;
+                                 width:2.5rem;text-align:right;">
+                        {avant_pct}%
+                    </span>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;
+                            margin-bottom:0.4rem;">
+                    <span style="font-size:0.7rem;opacity:0.5;
+                                 width:3rem;">Après</span>
+                    <div style="flex:1;background:rgba(128,128,128,0.1);
+                                border-radius:3px;height:5px;">
+                        <div style="background:{couleur};border-radius:3px;
+                                    height:5px;width:{apres_pct}%;"></div>
+                    </div>
+                    <span style="font-size:0.7rem;opacity:0.5;
+                                 width:2.5rem;text-align:right;">
+                        {apres_pct}%
+                    </span>
+                </div>
+                <div style="font-size:0.73rem;opacity:0.55;
+                            line-height:1.4;">{note}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    def est_propre(val):
+        if val is None:
+            return False
+        if isinstance(val, float) and pd.isna(val):
+            return False
+        if isinstance(val, dict):
+            return False
+        if isinstance(val, str) and (
+            "@xsi:nil" in val or "@xmlns:xsi" in val
+            or val.strip() == ""
+        ):
+            return False
+        return True

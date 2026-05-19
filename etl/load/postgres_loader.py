@@ -40,7 +40,6 @@ class PostgresLoader:
             )
             self.engine = create_engine(url, pool_pre_ping=True)
 
-            # Test de connexion
             with self.engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
 
@@ -131,6 +130,20 @@ class PostgresLoader:
                     )
                 """))
 
+                # Table des statistiques pipeline
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS pipeline_stats (
+                        id              SERIAL PRIMARY KEY,
+                        run_date        TIMESTAMP DEFAULT NOW(),
+                        acteurs_bruts   INTEGER NOT NULL,
+                        acteurs_ignores INTEGER NOT NULL,
+                        acteurs_retenus INTEGER NOT NULL,
+                        scrutins_bruts  INTEGER NOT NULL,
+                        scrutins_nets   INTEGER NOT NULL,
+                        groupes         INTEGER NOT NULL
+                    )
+                """))
+
             logger.success("Tables créées / vérifiées")
             return True
 
@@ -186,18 +199,16 @@ class PostgresLoader:
         return count
 
     def inserer_deputes(self, deputes: list) -> int:
-        """
-        Insère les députés (upsert sur l'uid).
-
-        Returns:
-            Nombre de lignes insérées/mises à jour
-        """
         if self.engine is None:
             return 0
 
         count = 0
         try:
             with self.engine.begin() as conn:
+                # Vide la table avant rechargement pour éviter les données résiduelles
+                conn.execute(text("TRUNCATE TABLE deputes RESTART IDENTITY CASCADE"))
+                logger.info("Table députés vidée avant rechargement")
+
                 for d in deputes:
                     try:
                         conn.execute(text("""
@@ -303,3 +314,35 @@ class PostgresLoader:
             logger.error(f"Erreur insertion scrutins : {e}")
 
         return count
+
+    def inserer_stats(self, stats: dict) -> bool:
+        """
+        Insère les statistiques d'une exécution du pipeline.
+        Permet au dashboard de lire les chiffres réels dynamiquement.
+
+        Args:
+            stats: dict avec les clés acteurs_bruts, acteurs_ignores,
+                   acteurs_retenus, scrutins_bruts, scrutins_nets, groupes
+
+        Returns:
+            True si succès, False sinon
+        """
+        if self.engine is None:
+            return False
+
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO pipeline_stats
+                        (acteurs_bruts, acteurs_ignores, acteurs_retenus,
+                         scrutins_bruts, scrutins_nets, groupes)
+                    VALUES
+                        (:acteurs_bruts, :acteurs_ignores, :acteurs_retenus,
+                         :scrutins_bruts, :scrutins_nets, :groupes)
+                """), stats)
+            logger.success("Statistiques pipeline insérées")
+            return True
+
+        except SQLAlchemyError as e:
+            logger.error(f"Erreur insertion stats pipeline : {e}")
+            return False

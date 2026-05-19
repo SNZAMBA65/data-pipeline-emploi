@@ -100,7 +100,7 @@ def run_pipeline(args) -> bool:
         logger.error("Aucun groupe collecté — arrêt du pipeline")
         return False
 
-    # 1b. Députés via API ZIP officielle
+    # 1b. Députés via API ZIP officielle (AMO30 — tous acteurs)
     logger.info("Collecte des députés via API officielle...")
     try:
         deputes_collector = DeputesCollector()
@@ -166,7 +166,10 @@ def run_pipeline(args) -> bool:
 
     # ── ÉTAPE 4 : LOAD CLEAN → POSTGRESQL ────────────────────────
     if not args.skip_postgres:
-        logger.info("── ÉTAPE 4 : CHARGEMENT CLEAN → POSTGRESQL (Data Warehouse) ──")
+        logger.info(
+            "── ÉTAPE 4 : CHARGEMENT CLEAN → POSTGRESQL "
+            "(Data Warehouse) ──"
+        )
         try:
             pg = PostgresLoader()
             if pg.connecter():
@@ -174,9 +177,18 @@ def run_pipeline(args) -> bool:
                 pg.inserer_groupes(groupes)
                 pg.inserer_deputes(deputes_clean)
                 pg.inserer_scrutins(scrutins_clean)
+                pg.inserer_stats({
+                    "acteurs_bruts":   deputes_collector.nb_acteurs_bruts,
+                    "acteurs_ignores": deputes_collector.nb_ignores,
+                    "acteurs_retenus": len(deputes_bruts),
+                    "scrutins_bruts":  len(scrutins_bruts),
+                    "scrutins_nets":   len(scrutins_clean),
+                    "groupes":         len(groupes),
+                })
             else:
                 logger.warning(
-                    "PostgreSQL non disponible — données propres non sauvegardées"
+                    "PostgreSQL non disponible — "
+                    "données propres non sauvegardées"
                 )
         except Exception as e:
             logger.warning(f"Erreur PostgreSQL (non bloquant) : {e}")
@@ -187,10 +199,20 @@ def run_pipeline(args) -> bool:
     logger.info("=" * 60)
     logger.success("PIPELINE TERMINÉ AVEC SUCCÈS")
     logger.info(f"  Groupes politiques : {len(groupes)}")
-    logger.info(f"  Députés collectés  : {len(deputes_bruts)}")
-    logger.info(f"  Députés nettoyés   : {len(deputes_clean)}")
-    logger.info(f"  Scrutins collectés : {len(scrutins_bruts)}")
-    logger.info(f"  Scrutins nettoyés  : {len(scrutins_clean)}")
+    logger.info(f"  ── NETTOYAGE DÉPUTÉS ──────────────────────")
+    logger.info(
+        f"  Acteurs bruts (AMO30)         : "
+        f"{deputes_collector.nb_acteurs_bruts:,}"
+    )
+    logger.info(
+        f"  Ignorés (autres législatures) : "
+        f"{deputes_collector.nb_ignores:,}"
+    )
+    logger.info(f"  Retenus (17e lég. actifs)     : {len(deputes_bruts):,}")
+    logger.info(f"  Députés nettoyés              : {len(deputes_clean):,}")
+    logger.info(f"  ── SCRUTINS ───────────────────────────────")
+    logger.info(f"  Scrutins collectés : {len(scrutins_bruts):,}")
+    logger.info(f"  Scrutins nettoyés  : {len(scrutins_clean):,}")
     logger.info("=" * 60)
     return True
 

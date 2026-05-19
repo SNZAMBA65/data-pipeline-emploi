@@ -58,9 +58,21 @@ CREATE TABLE IF NOT EXISTS scrutins (
     collecte_le         TIMESTAMP DEFAULT NOW()
 );
 
+-- Statistiques des exécutions du pipeline ETL
+CREATE TABLE IF NOT EXISTS pipeline_stats (
+    id              SERIAL PRIMARY KEY,
+    run_date        TIMESTAMP DEFAULT NOW(),
+    acteurs_bruts   INTEGER NOT NULL,
+    acteurs_ignores INTEGER NOT NULL,
+    acteurs_retenus INTEGER NOT NULL,
+    scrutins_bruts  INTEGER NOT NULL,
+    scrutins_nets   INTEGER NOT NULL,
+    groupes         INTEGER NOT NULL
+);
+
 -- Index pour accélérer les requêtes fréquentes
-CREATE INDEX IF NOT EXISTS idx_deputes_groupe  ON deputes(groupe_sigle);
+CREATE INDEX IF NOT EXISTS idx_deputes_groupe   ON deputes(groupe_sigle);
 CREATE INDEX IF NOT EXISTS idx_deputes_civilite ON deputes(civilite);
-CREATE INDEX IF NOT EXISTS idx_scrutins_date   ON scrutins(date);
-CREATE INDEX IF NOT EXISTS idx_scrutins_sort   ON scrutins(sort);
-CREATE INDEX IF NOT EXISTS idx_scrutins_annee  ON scrutins(annee);
+CREATE INDEX IF NOT EXISTS idx_scrutins_date    ON scrutins(date);
+CREATE INDEX IF NOT EXISTS idx_scrutins_sort    ON scrutins(sort);
+CREATE INDEX IF NOT EXISTS idx_scrutins_annee   ON scrutins(annee);
