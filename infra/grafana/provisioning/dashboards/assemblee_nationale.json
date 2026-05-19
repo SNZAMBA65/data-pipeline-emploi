@@ -370,6 +370,86 @@
         "format": "table",
         "refId": "A"
       }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "auto" },
+            "inspect": false,
+            "minWidth": 80
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Acteurs bruts" },
+            "properties": [{ "id": "custom.width", "value": 120 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Ignorés" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "mode": "gradient", "type": "color-background" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 1000 },
+                    { "color": "#C1002A", "value": 2000 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Retenus" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "mode": "gradient", "type": "color-background" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#C1002A", "value": null },
+                    { "color": "orange", "value": 400 },
+                    { "color": "green", "value": 570 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 30 },
+      "id": 9,
+      "options": {
+        "cellHeight": "md",
+        "footer": { "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Date exécution" }]
+      },
+      "title": "Historique des exécutions du pipeline ETL",
+      "type": "table",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
+        "rawSql": "SELECT TO_CHAR(run_date, 'DD/MM/YYYY HH24:MI') AS \"Date exécution\", acteurs_bruts AS \"Acteurs bruts\", acteurs_ignores AS \"Ignorés\", acteurs_retenus AS \"Retenus\", scrutins_bruts AS \"Scrutins bruts\", scrutins_nets AS \"Scrutins nets\", groupes AS \"Groupes\" FROM pipeline_stats ORDER BY run_date DESC LIMIT 10;",
+        "format": "table",
+        "refId": "A"
+      }]
     }
   ],
   "refresh": "5m",
