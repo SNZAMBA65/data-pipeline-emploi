@@ -74,6 +74,8 @@ class TestDataCleaner:
         )
 
         collector_d = DeputesCollector()
+        # On fournit un mapping avec le UID du député de test
+        mapping = {"PA123456": "RN"}
         depute = collector_d._parser_depute({
             "acteur": {
                 "uid": {"#text": "PA123456"},
@@ -87,7 +89,7 @@ class TestDataCleaner:
                 },
                 "profession": {"libelleCourant": "Avocat"}
             }
-        })
+        }, mapping)
 
         collector_s = ScrutinsCollector()
         scrutin = collector_s._parser_scrutin({
@@ -108,6 +110,7 @@ class TestDataCleaner:
             }
         })
 
+        assert depute is not None, "Le député de test n'a pas été parsé"
         try:
             result = self.cleaner.transformer([depute], [scrutin], [])
             assert result is not None

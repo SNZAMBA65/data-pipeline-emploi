@@ -37,7 +37,9 @@ class TestDeputesCollector:
                 }
             }
         }
-        result = collector._parser_depute(data)
+        # On fournit un mapping avec le UID du député de test
+        mapping = {"PA123456": "RN"}
+        result = collector._parser_depute(data, mapping)
         assert result is not None
         assert hasattr(result, "uid")
         assert hasattr(result, "nom")
@@ -74,7 +76,9 @@ class TestDeputesCollector:
                 }
             }
         }
-        result = collector._parser_depute(data)
+        # On fournit un mapping avec le UID du député de test
+        mapping = {"PA999999": "SOC"}
+        result = collector._parser_depute(data, mapping)
         assert result is not None
         assert hasattr(result, "date_naissance")
         assert result.date_naissance is None or result.date_naissance == ""
@@ -84,7 +88,7 @@ class TestDeputesCollector:
         collector = DeputesCollector()
         data = {"acteur": {}}
         try:
-            result = collector._parser_depute(data)
+            result = collector._parser_depute(data, {})
         except Exception as e:
             pytest.fail(f"_parser_depute a levé une exception inattendue : {e}")
 
@@ -111,7 +115,9 @@ class TestDeputesCollector:
                 }
             }
         }
-        result = collector._parser_depute(data)
+        # On fournit un mapping avec le UID du député de test
+        mapping = {"PA111111": "EPR"}
+        result = collector._parser_depute(data, mapping)
         attributs = [
             "uid", "nom", "prenom", "civilite",
             "date_naissance", "lieu_naissance", "profession"
