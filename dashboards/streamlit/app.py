@@ -952,6 +952,10 @@ elif page == "Députés":
 
 elif page == "Scrutins":
 
+    sort_opt   = st.selectbox("Résultat", ["Tous", "adopté", "rejeté"])
+    annees_all = sorted(df_s["annee"].dropna().unique().astype(int))
+    annees_sel = st.multiselect("Années", annees_all, default=annees_all)
+
     st.markdown(f"""
     <div class="page-banner">
         <div>
@@ -964,11 +968,42 @@ elif page == "Scrutins":
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Filtres ──────────────────────────────────────────────────
     df = df_s.copy()
     if sort_opt != "Tous":
         df = df[df["sort"] == sort_opt]
     if annees_sel:
         df = df[df["annee"].isin(annees_sel)]
+
+    # Filtre type de scrutin
+    types_dispo = ["Tous"] + sorted(
+        df_s["type_vote"].dropna().unique().tolist()
+    )
+    col_f1, col_f2 = st.columns([2, 3])
+    with col_f1:
+        type_opt = st.selectbox(
+            "Type de scrutin",
+            types_dispo,
+            key="type_scrutin"
+        )
+    with col_f2:
+        recherche = st.text_input(
+            "Rechercher dans les titres",
+            placeholder="ex. budget, retraite, motion...",
+            key="recherche_scrutin"
+        )
+
+    if type_opt != "Tous":
+        df = df[df["type_vote"] == type_opt]
+    if recherche.strip():
+        df = df[
+            df["titre"].fillna("").str.lower().str.contains(
+                recherche.strip().lower(), regex=False
+            ) |
+            df["titre_court"].fillna("").str.lower().str.contains(
+                recherche.strip().lower(), regex=False
+            )
+        ]
 
     st.caption(
         f"{len(df):,} scrutin{'s' if len(df) > 1 else ''} "
@@ -976,182 +1011,252 @@ elif page == "Scrutins":
     )
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── KPIs ─────────────────────────────────────────────────────
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Scrutins", f"{len(df):,}", "sélectionnés")
     k2.metric("Adoptés", f"{df['adopte'].sum():,}",
-              f"{df['adopte'].mean()*100:.1f} %")
+              f"{df['adopte'].mean()*100:.1f} %" if len(df) > 0 else "0 %")
     k3.metric("Rejetés", f"{(~df['adopte']).sum():,}",
-              f"{(~df['adopte']).mean()*100:.1f} %")
-    k4.metric("Votes pour (moy.)", f"{df['pour'].mean():.0f}",
+              f"{(~df['adopte']).mean()*100:.1f} %" if len(df) > 0 else "0 %")
+    k4.metric("Votes pour (moy.)",
+              f"{df['pour'].mean():.0f}" if len(df) > 0 else "—",
               "par scrutin")
     k5.metric("Participation moy.",
-              f"{df['taux_participation'].mean():.1f} %",
-              f"max. {df['taux_participation'].max():.1f} %")
+              f"{df['taux_participation'].mean():.1f} %" if len(df) > 0 else "—",
+              f"max. {df['taux_participation'].max():.1f} %" if len(df) > 0 else "")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── Export CSV ───────────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-    st.markdown("### Évolution mensuelle des scrutins")
-    st.caption(
-        "Nombre de scrutins publics (barres) et participation "
-        "moyenne (courbe) · par mois"
-    )
-
-    df_mois = (
-        df.groupby(df["date"].dt.to_period("M"))
-        .agg(nb=("uid","count"),
-             participation=("taux_participation","mean"))
-        .reset_index()
-    )
-    df_mois["date"]         = df_mois["date"].dt.to_timestamp()
-    df_mois["particip_pct"] = df_mois["participation"].round(1)
-
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Bar(
-        x=df_mois["date"], y=df_mois["nb"],
-        name="Scrutins",
-        marker_color=BLEU, marker_opacity=0.82,
-        marker_line=dict(color="rgba(0,0,0,0)"),
-        hovertemplate="<b>%{x|%b %Y}</b><br>%{y} scrutins<extra></extra>",
-    ), secondary_y=False)
-    fig.add_trace(go.Scatter(
-        x=df_mois["date"], y=df_mois["particip_pct"],
-        name="Participation (%)", mode="lines+markers",
-        line=dict(color=ROUGE, width=2.5, shape="spline"),
-        marker=dict(size=7, color=ROUGE,
-                    line=dict(color="white", width=2)),
-        hovertemplate="<b>%{x|%b %Y}</b><br>%{y:.1f} %<extra></extra>",
-    ), secondary_y=True)
-    fig.update_layout(**plo(
-        height=320,
-        legend=dict(orientation="h", y=1.08,
-                    bgcolor="rgba(0,0,0,0)", font=dict(size=12))
-    ))
-    fig.update_xaxes(**ax())
-    fig.update_yaxes(title_text="Nombre de scrutins",
-                     gridcolor="rgba(128,128,128,0.12)", secondary_y=False)
-    fig.update_yaxes(title_text="Participation (%)",
-                     showgrid=False, secondary_y=True)
-    chart(fig)
+    col_titre_export, col_btn_export = st.columns([3, 1])
+    with col_titre_export:
+        st.markdown("### Données filtrées")
+        st.caption(
+            "Exportez les scrutins de la sélection courante "
+            "pour vos analyses dans R, Python ou Excel."
+        )
+    with col_btn_export:
+        st.markdown("<br>", unsafe_allow_html=True)
+        df_export = df[[
+            "date", "titre", "titre_court", "type_vote",
+            "sort", "pour", "contre", "abstention",
+            "non_votant", "total_votants", "taux_participation"
+        ]].copy()
+        df_export["date"] = df_export["date"].dt.strftime("%Y-%m-%d")
+        csv = df_export.to_csv(index=False, encoding="utf-8")
+        st.download_button(
+            label="Télécharger CSV",
+            data=csv,
+            file_name="scrutins_selection.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    col_l, col_r = st.columns(2)
 
-    with col_l:
+    # ── Évolution mensuelle ──────────────────────────────────────
+    if len(df) > 0:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.markdown("### Pour vs Contre")
+        st.markdown("### Évolution mensuelle des scrutins")
         st.caption(
-            "Un point par scrutin · couleur selon le résultat · "
-            "survolez pour le détail"
+            "Nombre de scrutins (barres) et participation "
+            "moyenne (courbe) par mois"
         )
 
-        fig = go.Figure()
-        for sv, color, name in [
-            ("rejeté", ROUGE, "Rejeté"),
-            ("adopté", BLEU,  "Adopté"),
-        ]:
-            sub = df[df["sort"] == sv]
-            fig.add_trace(go.Scatter(
-                x=sub["pour"], y=sub["contre"],
-                mode="markers", name=name,
-                marker=dict(color=color, size=5, opacity=0.45,
-                            line=dict(color="white", width=0.5)),
-                customdata=sub[[
-                    "titre_court", "date", "taux_participation"
-                ]].values,
+        df_mois = (
+            df.groupby(df["date"].dt.to_period("M"))
+            .agg(nb=("uid", "count"),
+                 participation=("taux_participation", "mean"))
+            .reset_index()
+        )
+        df_mois["date"]         = df_mois["date"].dt.to_timestamp()
+        df_mois["particip_pct"] = df_mois["participation"].round(1)
+
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Bar(
+            x=df_mois["date"], y=df_mois["nb"],
+            name="Scrutins",
+            marker_color=BLEU, marker_opacity=0.82,
+            marker_line=dict(color="rgba(0,0,0,0)"),
+            hovertemplate="<b>%{x|%b %Y}</b><br>%{y} scrutins<extra></extra>",
+        ), secondary_y=False)
+        fig.add_trace(go.Scatter(
+            x=df_mois["date"], y=df_mois["particip_pct"],
+            name="Participation (%)", mode="lines+markers",
+            line=dict(color=ROUGE, width=2.5, shape="spline"),
+            marker=dict(size=7, color=ROUGE,
+                        line=dict(color="white", width=2)),
+            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:.1f} %<extra></extra>",
+        ), secondary_y=True)
+        fig.update_layout(**plo(
+            height=320,
+            legend=dict(orientation="h", y=1.08,
+                        bgcolor="rgba(0,0,0,0)", font=dict(size=12))
+        ))
+        fig.update_xaxes(**ax())
+        fig.update_yaxes(title_text="Nombre de scrutins",
+                         gridcolor="rgba(128,128,128,0.12)",
+                         secondary_y=False)
+        fig.update_yaxes(title_text="Participation (%)",
+                         showgrid=False, secondary_y=True)
+        chart(fig)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        col_l, col_r = st.columns(2)
+
+        with col_l:
+            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+            st.markdown("### Pour vs Contre")
+            st.caption(
+                "Un point par scrutin · couleur selon le résultat · "
+                "survolez pour le détail"
+            )
+
+            fig = go.Figure()
+            for sv, color, name in [
+                ("rejeté", ROUGE, "Rejeté"),
+                ("adopté", BLEU,  "Adopté"),
+            ]:
+                sub = df[df["sort"] == sv]
+                if not sub.empty:
+                    fig.add_trace(go.Scatter(
+                        x=sub["pour"], y=sub["contre"],
+                        mode="markers", name=name,
+                        marker=dict(color=color, size=5, opacity=0.45,
+                                    line=dict(color="white", width=0.5)),
+                        customdata=sub[[
+                            "titre_court", "date", "taux_participation"
+                        ]].values,
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "Date : %{customdata[1]|%d/%m/%Y}<br>"
+                            "Pour : %{x} · Contre : %{y}<br>"
+                            "Participation : %{customdata[2]:.1f} %"
+                            "<extra></extra>"
+                        ),
+                    ))
+            fig.update_layout(**plo(
+                height=380,
+                legend=dict(orientation="h", y=1.05,
+                            bgcolor="rgba(0,0,0,0)", font=dict(size=11))
+            ))
+            fig.update_xaxes(**ax(title_text="Votes pour"))
+            fig.update_yaxes(**ay(title_text="Votes contre"))
+            chart(fig)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with col_r:
+            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+            st.markdown("### Participation par type de scrutin")
+            st.caption(
+                "Taux de participation moyen selon la nature du vote "
+                "— utile pour identifier les textes qui mobilisent"
+            )
+
+            part_type = (
+                df.groupby("type_vote")["taux_participation"]
+                .agg(["mean", "count"])
+                .reset_index()
+                .rename(columns={"mean": "participation_moy", "count": "nb"})
+                .sort_values("participation_moy", ascending=True)
+                .head(10)
+            )
+
+            fig = go.Figure(go.Bar(
+                x=part_type["participation_moy"].round(1),
+                y=part_type["type_vote"],
+                orientation="h",
+                marker=dict(
+                    color=part_type["participation_moy"],
+                    colorscale=COLORSCALE_BLEU,
+                    showscale=False,
+                    line=dict(color="rgba(0,0,0,0)"),
+                ),
+                text=[
+                    f"{v:.1f} % ({n} scrutins)"
+                    for v, n in zip(
+                        part_type["participation_moy"],
+                        part_type["nb"]
+                    )
+                ],
+                textposition="outside",
+                textfont=dict(size=10, family=FONT),
                 hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "Date : %{customdata[1]|%d/%m/%Y}<br>"
-                    "Pour : %{x} · Contre : %{y}<br>"
-                    "Participation : %{customdata[2]:.1f} %"
-                    "<extra></extra>"
+                    "<b>%{y}</b><br>"
+                    "Participation moy. : %{x:.1f} %<extra></extra>"
                 ),
             ))
-        fig.update_layout(**plo(
-            height=380,
-            legend=dict(orientation="h", y=1.05,
-                        bgcolor="rgba(0,0,0,0)", font=dict(size=11))
-        ))
-        fig.update_xaxes(**ax(title_text="Votes pour"))
-        fig.update_yaxes(**ay(title_text="Votes contre"))
-        chart(fig)
-        st.markdown('</div>', unsafe_allow_html=True)
+            fig.update_layout(**plo(height=380))
+            fig.update_xaxes(**ax(title_text="Participation moyenne (%)"))
+            fig.update_yaxes(
+                categoryorder="total ascending",
+                tickfont=dict(size=10),
+                gridcolor="rgba(0,0,0,0)"
+            )
+            chart(fig)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_r:
+        # ── Tableau des scrutins ──────────────────────────────────
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.markdown("### Types de scrutins")
-        st.caption("Répartition par catégorie · top 8 par volume")
-
-        tc = df["type_vote"].value_counts().head(8).reset_index()
-        tc.columns = ["type_vote", "nb"]
-
-        fig = go.Figure(go.Bar(
-            x=tc["nb"], y=tc["type_vote"],
-            orientation="h",
-            marker=dict(
-                color=tc["nb"],
-                colorscale=COLORSCALE_BLEU,
-                showscale=False,
-                line=dict(color="rgba(0,0,0,0)"),
-            ),
-            text=tc["nb"],
-            textposition="outside",
-            textfont=dict(size=11, family=FONT),
-            hovertemplate=(
-                "<b>%{y}</b><br>%{x} scrutins<extra></extra>"
-            ),
-        ))
-        fig.update_layout(**plo(height=380))
-        fig.update_xaxes(**ax())
-        fig.update_yaxes(
-            categoryorder="total ascending",
-            tickfont=dict(size=10.5),
-            gridcolor="rgba(0,0,0,0)"
+        st.markdown("### Liste des scrutins")
+        st.caption(
+            "Triez par colonne · cliquez sur un scrutin pour le détail"
         )
-        chart(fig)
+
+        df["ecart"] = abs(df["pour"] - df["contre"])
+        df_table = (
+            df[[
+                "date", "titre_court", "type_vote",
+                "pour", "contre", "ecart", "sort",
+                "taux_participation"
+            ]]
+            .copy()
+            .sort_values("date", ascending=False)
+        )
+        df_table["date"] = df_table["date"].dt.strftime("%d/%m/%Y")
+        df_table["sort"] = df_table["sort"].apply(
+            lambda x: "Adopté" if x == "adopté" else "Rejeté"
+        )
+        df_table["titre_court"] = df_table["titre_court"].apply(
+            nettoyer_affichage
+        )
+
+        hauteur_table = min(max(len(df_table) * 35 + 60, 300), 550)
+
+        st.dataframe(
+            df_table.rename(columns={
+                "date":               "Date",
+                "titre_court":        "Objet",
+                "type_vote":          "Type",
+                "pour":               "Pour",
+                "contre":             "Contre",
+                "ecart":              "Écart",
+                "sort":               "Résultat",
+                "taux_participation": "Participation %",
+            }).reset_index(drop=True),
+            use_container_width=True,
+            height=hauteur_table,
+            column_config={
+                "Date":          st.column_config.TextColumn(width="small"),
+                "Objet":         st.column_config.TextColumn(width="large"),
+                "Type":          st.column_config.TextColumn(width="medium"),
+                "Pour":          st.column_config.NumberColumn(width="small"),
+                "Contre":        st.column_config.NumberColumn(width="small"),
+                "Écart":         st.column_config.NumberColumn(width="small"),
+                "Résultat":      st.column_config.TextColumn(width="small"),
+                "Participation %": st.column_config.NumberColumn(
+                    width="small", format="%.1f %%"
+                ),
+            }
+        )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-    st.markdown("### Scrutins les plus serrés")
-    st.caption(
-        "Classés par écart minimal entre votes pour et contre · "
-        "révélateurs des tensions politiques au sein de l'hémicycle"
-    )
-
-    df["ecart"] = abs(df["pour"] - df["contre"])
-    top10 = (
-        df.nsmallest(10, "ecart")
-        [["date","titre_court","pour","contre","ecart","sort"]]
-        .copy()
-    )
-    top10["date"]        = top10["date"].dt.strftime("%d/%m/%Y")
-    top10["titre_court"] = top10["titre_court"].apply(nettoyer_affichage)
-    top10["sort"]        = top10["sort"].apply(
-        lambda x: "Adopté" if x == "adopté" else "Rejeté"
-    )
-
-    st.dataframe(
-        top10.rename(columns={
-            "date":        "Date",
-            "titre_court": "Objet du scrutin",
-            "pour":        "Pour",
-            "contre":      "Contre",
-            "ecart":       "Écart",
-            "sort":        "Résultat",
-        }).reset_index(drop=True),
-        use_container_width=True,
-        height=390,
-        column_config={
-            "Date":             st.column_config.TextColumn(width="small"),
-            "Objet du scrutin": st.column_config.TextColumn(width="large"),
-            "Pour":             st.column_config.NumberColumn(width="small"),
-            "Contre":           st.column_config.NumberColumn(width="small"),
-            "Écart":            st.column_config.NumberColumn(width="small"),
-            "Résultat":         st.column_config.TextColumn(width="small"),
-        }
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("Aucun scrutin ne correspond aux filtres sélectionnés.")
 
 # ═══════════════════════════════════════════════════════════════════
 # PIPELINE
