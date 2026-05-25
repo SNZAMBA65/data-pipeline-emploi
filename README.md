@@ -1,14 +1,14 @@
 # Assemblée nationale · Pipeline Data Cloud
 ### 17e législature - Analyse des données parlementaires françaises
 
-**Samir NZAMBA** · Mastère DPIA 1 · L'École Multimédia · Paris · 2025-2026  
+**Samir NZAMBA** · Mastère DPIA 1 · Fonderie de l'image · Paris · 2025-2026  
 Projet #2 - Infrastructure Data Cloud
 
 ---
 
 ## À propos
 
-Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 577 députés actifs et des 5 847 scrutins publics enregistrés depuis juillet 2024.
+Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 577 députés actifs et des 6 645 scrutins publics enregistrés depuis juillet 2024.
 
 La collecte repose sur deux sources complémentaires : l'**API officielle** de l'Assemblée nationale pour les données structurées (députés et scrutins au format ZIP JSON) et du **scraping HTML** pour les groupes politiques, qui ne sont pas exposés via l'API. Les données brutes transitent par un Data Lake MinIO avant d'être nettoyées, enrichies et chargées dans un Data Warehouse PostgreSQL. Le tout est orchestré par Airflow, supervisé par Prometheus et Grafana, et exposé via un dashboard Streamlit interactif.
 
@@ -63,9 +63,10 @@ API officielle AN (ZIP)       Scraping HTML (groupes politiques)
 
 **577 députés actifs** · 17e législature uniquement  
 Identité civile, date et lieu de naissance, profession, groupe politique, photo  
-Source : `AMO10_deputes_actifs_mandats_actifs_organes.json.zip`
+Source : `AMO30_tous_acteurs_tous_mandats_tous_organes_historique.json.zip`  
+Le fichier contient l'ensemble des acteurs parlementaires depuis plusieurs législatures. Le pipeline filtre uniquement les députés avec un mandat actif en 17e législature, ce qui ramène le dataset de 3 114 acteurs à 577 députés actifs.
 
-**5 847 scrutins publics** · juillet 2024 - mars 2026  
+**6 645 scrutins publics** · juillet 2024 - mars 2026  
 Titre, date, résultat, votes pour/contre/abstentions, taux de participation  
 Source : `Scrutins.json.zip`
 
@@ -75,14 +76,14 @@ Source : scraping `assemblee-nationale.fr/dyn/les-groupes-politiques`
 | Sigle | Groupe | Sièges |
 |---|---|---|
 | RN | Rassemblement National | 122 |
-| EPR | Ensemble pour la République | 90 |
+| EPR | Ensemble pour la République | 91 |
 | LFI-NFP | La France insoumise - Nouveau Front Populaire | 71 |
-| SOC | Socialistes et apparentés | 69 |
+| SOC | Socialistes et apparentés | 68 |
 | DR | Droite Républicaine | 48 |
 | ECO | Écologiste et Social | 38 |
-| DEM | Les Démocrates | 36 |
+| DEM | Les Démocrates | 37 |
 | HOR | Horizons & Indépendants | 35 |
-| LIOT | Libertés, Indépendants, Outre-mer et Territoires | 22 |
+| LIOT | Libertés, Indépendants, Outre-mer et Territoires | 23 |
 | GDR | Gauche Démocrate et Républicaine | 17 |
 | UDR | Union des droites pour la République | 17 |
 | NI | Députés non inscrits | 10 |
@@ -373,7 +374,7 @@ jupyter notebook
 ```
 
 - `01_exploration.ipynb` : exploration générale, statistiques descriptives
-- `02_analyse_scrutins.ipynb` : analyse des 5 847 scrutins publics
+- `02_analyse_scrutins.ipynb` : analyse des 6 645 scrutins publics
 - `03_analyse_deputes.ipynb` : analyse démographique des 577 députés
 
 Les visualisations sont exportées dans `data/processed/`.
@@ -435,6 +436,6 @@ streamlit run dashboards/streamlit/app.py --server.address 0.0.0.0 --server.port
 
 ## Contexte académique
 
-Projet réalisé dans le cadre du Mastère DPIA 1 - Directeur de Projet en Intelligence Artificielle à L'École Multimédia (Paris), année 2025-2026.
+Projet réalisé dans le cadre du Mastère DPIA 1 - Directeur de Projet en Intelligence Artificielle à Fonderie de l'image (Paris), année 2025-2026.
 
 Données source sous [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence) - Assemblée nationale française.
