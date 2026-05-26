@@ -8,7 +8,7 @@ Projet #2 - Infrastructure Data Cloud
 
 ## À propos
 
-Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 577 députés actifs et des 6 645 scrutins publics enregistrés depuis juillet 2024.
+Ce projet construit un pipeline de données end-to-end sur les données parlementaires françaises de la 17e législature. L'objectif est de collecter, stocker, transformer et visualiser les données des 577 députés actifs et des 6899 scrutins publics enregistrés depuis juillet 2024.
 
 La collecte repose sur deux sources complémentaires : l'**API officielle** de l'Assemblée nationale pour les données structurées (députés et scrutins au format ZIP JSON) et du **scraping HTML** pour les groupes politiques, qui ne sont pas exposés via l'API. Les données brutes transitent par un Data Lake MinIO avant d'être nettoyées, enrichies et chargées dans un Data Warehouse PostgreSQL. Le tout est orchestré par Airflow, supervisé par Prometheus et Grafana, et exposé via un dashboard Streamlit interactif.
 
@@ -66,7 +66,7 @@ Identité civile, date et lieu de naissance, profession, groupe politique, photo
 Source : `AMO30_tous_acteurs_tous_mandats_tous_organes_historique.json.zip`  
 Le fichier contient l'ensemble des acteurs parlementaires depuis plusieurs législatures. Le pipeline filtre uniquement les députés avec un mandat actif en 17e législature, ce qui ramène le dataset de 3 114 acteurs à 577 députés actifs.
 
-**6 645 scrutins publics** · juillet 2024 - mars 2026  
+**6899 scrutins publics** · juillet 2024 - mars 2026  
 Titre, date, résultat, votes pour/contre/abstentions, taux de participation  
 Source : `Scrutins.json.zip`
 
@@ -219,7 +219,7 @@ Les services suivants doivent afficher le statut **Up** :
 
 ### 6. Alimenter la base de données
 
-Le pipeline collecte les groupes politiques par scraping HTML, les 577 députés actifs et leurs groupes via l'API officielle, charge les données brutes dans MinIO et les données transformées dans PostgreSQL — tout en une seule commande :
+Le pipeline collecte les groupes politiques par scraping HTML, les 577 députés actifs et leurs groupes via l'API officielle, charge les données brutes dans MinIO et les données transformées dans PostgreSQL - tout en une seule commande :
 ```bash
 python etl/pipeline.py
 ```
@@ -374,7 +374,7 @@ jupyter notebook
 ```
 
 - `01_exploration.ipynb` : exploration générale, statistiques descriptives
-- `02_analyse_scrutins.ipynb` : analyse des 6 645 scrutins publics
+- `02_analyse_scrutins.ipynb` : analyse des 6 899 scrutins publics
 - `03_analyse_deputes.ipynb` : analyse démographique des 577 députés
 
 Les visualisations sont exportées dans `data/processed/`.

@@ -1,7 +1,7 @@
 """
-Dashboard Streamlit — Assemblée nationale française, 17e législature.
-Projet #2 — Infrastructure Data Cloud · DPIA 1
-Auteur : Samir NZAMBA · L'École Multimédia · Paris
+Dashboard Streamlit - Assemblée nationale française, 17e législature.
+Projet #2 - Infrastructure Data Cloud · DPIA 1
+Auteur : Samir NZAMBA · Fonderie de l'Image
 
 Usage :
     streamlit run dashboards/streamlit/app.py
@@ -231,26 +231,26 @@ def chart(fig):
 
 def nettoyer_affichage(val):
     if val is None:
-        return "—"
+        return "-"
     if isinstance(val, float) and math.isnan(val):
-        return "—"
+        return "-"
     if isinstance(val, dict):
         if "@xsi:nil" in val or "@xmlns:xsi" in val:
-            return "—"
+            return "-"
         for k in ("#text", "value", "text"):
             if k in val:
                 return str(val[k])
-        return "—"
+        return "-"
     if isinstance(val, str):
         v = val.strip()
         if v == "" or v.lower() == "none":
-            return "—"
+            return "-"
         if "@xsi:nil" in v or "@xmlns:xsi" in v:
-            return "—"
+            return "-"
     return val
 
 def nettoyer_serie(serie: pd.Series) -> pd.Series:
-    return serie.apply(nettoyer_affichage).replace("—", None)
+    return serie.apply(nettoyer_affichage).replace("-", None)
 
 
 # ─── Données ──────────────────────────────────────────────────────────────────
@@ -267,10 +267,10 @@ def get_engine():
 def charger():
     eng = get_engine()
 
-    # Données brutes — tous les enregistrements sans filtre
+    # Données brutes - tous les enregistrements sans filtre
     d_brut = pd.read_sql("SELECT * FROM deputes", eng)
 
-    # Données propres — uniquement les 577 actifs avec groupe
+    # Données propres - uniquement les 577 actifs avec groupe
     d = pd.read_sql(
         "SELECT * FROM deputes WHERE groupe_sigle IS NOT NULL",
         eng
@@ -381,7 +381,7 @@ with st.sidebar:
         "<div style='font-size:0.7rem;opacity:0.65;line-height:1.6;'>"
         "Mastère DPIA 1<br>"
         "Directeur de Projet IA<br>"
-        "L'École Multimédia · Paris<br>"
+        "Fonderie de l'Image<br>"
         "Projet #2 · Infrastructure Data Cloud"
         "</div></div>",
         unsafe_allow_html=True
@@ -425,7 +425,7 @@ if page == "Vue d'ensemble":
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("Députés actifs", f"{NB_DEPUTES}", "17e législature")
-    k2.metric("Scrutins publics", f"{NB_SCRUTINS:,}", "juil. 2024 — mars 2026")
+    k2.metric("Scrutins publics", f"{NB_SCRUTINS:,}", "juil. 2024 - mars 2026")
     k3.metric("Taux d'adoption", f"{adopte_pct:.1f} %",
               f"{df_s['adopte'].sum():,} adoptés")
     k4.metric("Femmes à l'AN", f"{femmes_pct:.1f} %",
@@ -633,7 +633,7 @@ if page == "Vue d'ensemble":
         textfont=dict(size=10.5, family=FONT),
         customdata=groupes_count[["nom", "pct"]].values,
         hovertemplate=(
-            "<b>%{x}</b> — %{customdata[0]}<br>"
+            "<b>%{x}</b> - %{customdata[0]}<br>"
             "%{y} sièges · %{customdata[1]} %<extra></extra>"
         ),
     ))
@@ -713,7 +713,7 @@ elif page == "Députés":
     k2.metric(
         "Âge médian",
         f"{int(df['age'].median())} ans"
-        if df["age"].notna().any() else "—",
+        if df["age"].notna().any() else "-",
         f"moy. {df['age'].mean():.1f} ans"
         if df["age"].notna().any() else ""
     )
@@ -918,7 +918,7 @@ elif page == "Députés":
         df_affichage[col] = df_affichage[col].apply(nettoyer_affichage)
 
     df_affichage["age"] = df_affichage["age"].apply(
-        lambda x: f"{int(float(x))} ans" if x != "—" else "—"
+        lambda x: f"{int(float(x))} ans" if x != "-" else "-"
     )
 
     hauteur = min(max(affiches * 35 + 60, 250), 600)
@@ -952,17 +952,13 @@ elif page == "Députés":
 
 elif page == "Scrutins":
 
-    sort_opt   = st.selectbox("Résultat", ["Tous", "adopté", "rejeté"])
-    annees_all = sorted(df_s["annee"].dropna().unique().astype(int))
-    annees_sel = st.multiselect("Années", annees_all, default=annees_all)
-
     st.markdown(f"""
     <div class="page-banner">
         <div>
             <div class="banner-title">Scrutins publics</div>
             <div class="banner-desc">
                 Votes en séance publique · 17e législature
-                · {NB_SCRUTINS:,} scrutins · juil. 2024 — mars 2026
+                · {NB_SCRUTINS:,} scrutins · juil. 2024 - mars 2026
             </div>
         </div>
     </div>
@@ -1019,10 +1015,10 @@ elif page == "Scrutins":
     k3.metric("Rejetés", f"{(~df['adopte']).sum():,}",
               f"{(~df['adopte']).mean()*100:.1f} %" if len(df) > 0 else "0 %")
     k4.metric("Votes pour (moy.)",
-              f"{df['pour'].mean():.0f}" if len(df) > 0 else "—",
+              f"{df['pour'].mean():.0f}" if len(df) > 0 else "-",
               "par scrutin")
     k5.metric("Participation moy.",
-              f"{df['taux_participation'].mean():.1f} %" if len(df) > 0 else "—",
+              f"{df['taux_participation'].mean():.1f} %" if len(df) > 0 else "-",
               f"max. {df['taux_participation'].max():.1f} %" if len(df) > 0 else "")
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1154,7 +1150,7 @@ elif page == "Scrutins":
             st.markdown("### Participation par type de scrutin")
             st.caption(
                 "Taux de participation moyen selon la nature du vote "
-                "— utile pour identifier les textes qui mobilisent"
+                "- utile pour identifier les textes qui mobilisent"
             )
 
             part_type = (
@@ -1267,7 +1263,7 @@ elif page == "Pipeline":
     st.markdown("""
     <div class="page-banner">
         <div>
-            <div class="banner-title">Pipeline ETL — Data Lake → Data Warehouse</div>
+            <div class="banner-title">Pipeline ETL - Data Lake → Data Warehouse</div>
             <div class="banner-desc">
                 Collecte · Transformation · Chargement ·
                 Visualisation de la chaîne complète de traitement
@@ -1276,7 +1272,7 @@ elif page == "Pipeline":
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Statistiques dynamiques — dernière exécution du pipeline ─
+    # ── Statistiques dynamiques - dernière exécution du pipeline ─
     if pipeline_stats is None:
         st.error(
             "⚠️ Aucune statistique de pipeline disponible. "
@@ -1293,7 +1289,7 @@ elif page == "Pipeline":
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Enregistrements bruts",
               f"{nb_brut:,}",
-              "avant filtre — toutes législatures")
+              "avant filtre - toutes législatures")
     k2.metric("Députés actifs retenus",
               f"{nb_actifs:,}",
               f"−{nb_ignores:,} ignorés")
@@ -1358,7 +1354,7 @@ elif page == "Pipeline":
                      vertical-align:top;">
             API officielle AN<br>
             <span style="opacity:0.6;font-size:0.78rem;">
-              ZIP AMO30 — tous acteurs<br>depuis la XIe législature<br>
+              ZIP AMO30 - tous acteurs<br>depuis la XIe législature<br>
               ZIP JSON scrutins
             </span><br><br>
             Scraping HTML<br>
@@ -1450,7 +1446,7 @@ elif page == "Pipeline":
     # ── Avant / Après nettoyage ──────────────────────────────────
     # ── Du brut au propre ────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-    st.markdown("### Du brut au propre — pipeline de nettoyage")
+    st.markdown("### Du brut au propre - pipeline de nettoyage")
     st.caption(
         f"De {nb_brut:,} acteurs bruts (AMO30) à {nb_actifs:,} députés "
         f"actifs enrichis · {nb_ignores:,} ignorés"
@@ -1559,10 +1555,10 @@ elif page == "Pipeline":
 
         etapes = [
             ("1", "Filtre 17e législature",
-             f"Sur {nb_brut:,} acteurs bruts (AMO30 — toutes législatures "
+             f"Sur {nb_brut:,} acteurs bruts (AMO30 - toutes législatures "
              f"depuis 1997), seuls les {nb_actifs:,} acteurs avec un mandat "
              f"de groupe politique actif en 17e législature sont retenus "
-             f"— {nb_ignores:,} ignorés.",
+             f"- {nb_ignores:,} ignorés.",
              "#002395"),
             ("2", "Nettoyage valeurs XML",
              "Les valeurs @xsi:nil retournées par l'API sont "
@@ -1578,7 +1574,7 @@ elif page == "Pipeline":
              "#DAA520"),
             ("5", "Déduction du genre",
              "Le genre est déduit de la civilité (M. → Homme, "
-             "Mme → Femme) — non fourni directement par l'API.",
+             "Mme → Femme) - non fourni directement par l'API.",
              "#FF8F00"),
             ("6", "Mapping groupe politique",
              "Le sigle du groupe est résolu depuis les organes "
@@ -1655,9 +1651,9 @@ elif page == "Pipeline":
         st.markdown("""
         <div style="font-size:0.78rem;margin-top:0.5rem;
                     display:flex;gap:1rem;">
-            <span style="color:#2E7D32;">■ ≥ 95 % — complet</span>
-            <span style="color:#DAA520;">■ 70–94 % — partiel</span>
-            <span style="color:#C1002A;">■ < 70 % — incomplet</span>
+            <span style="color:#2E7D32;">■ ≥ 95 % - complet</span>
+            <span style="color:#DAA520;">■ 70-94 % - partiel</span>
+            <span style="color:#C1002A;">■ < 70 % - incomplet</span>
         </div>
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1666,7 +1662,7 @@ elif page == "Pipeline":
 
     # ── Du brut au propre ────────────────────────────────────────
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-    st.markdown("### Du brut au propre — ce que le pipeline transforme")
+    st.markdown("### Du brut au propre - ce que le pipeline transforme")
     st.caption(
         f"3,114 acteurs bruts téléchargés · "
         f"577 députés actifs enrichis · "
@@ -1754,13 +1750,13 @@ elif page == "Pipeline":
         for champ, avant_pct, apres_pct, couleur, note in champs:
             delta = apres_pct - avant_pct
             if delta > 0:
-                label_delta = f"+{delta} points — enrichissement"
+                label_delta = f"+{delta} points - enrichissement"
                 couleur_delta = "#2E7D32"
             elif delta == 0 and avant_pct == 100:
                 label_delta = "Complet"
                 couleur_delta = "#2E7D32"
             elif delta == 0:
-                label_delta = f"{avant_pct}% — stable"
+                label_delta = f"{avant_pct}% - stable"
                 couleur_delta = "#757575"
             else:
                 label_delta = f"{delta} points"

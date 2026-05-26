@@ -167,6 +167,8 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
       PYTHONPATH: /opt/airflow
+      _PIP_ADDITIONAL_REQUIREMENTS: "loguru fake-useragent requests beautifulsoup4 python-dotenv minio sqlalchemy psycopg2-binary pandas"
+      
     volumes:
       - ./dags:/opt/airflow/dags
       - ./etl:/opt/airflow/etl
@@ -197,6 +199,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
       PYTHONPATH: /opt/airflow
+      _PIP_ADDITIONAL_REQUIREMENTS: "loguru fake-useragent requests beautifulsoup4 python-dotenv minio sqlalchemy psycopg2-binary pandas"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./etl:/opt/airflow/etl
